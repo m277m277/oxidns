@@ -7,12 +7,125 @@ This page describes the OxiDNS installation paths and the shortest path from dow
 
 For quick evaluation, prefer:
 
-- Linux servers: release archives or `.deb` packages
+- Linux servers: the one-command installer, release archives, or `.deb` packages
 - Containerized environments: the GHCR Docker image
 - Local development or debugging: build from source with Cargo
-- macOS / Windows: release archives
+- macOS / Windows: the one-command installer or release archives
 
-## 1. Build From Source
+## 1. One-Command Install
+
+The installer detects the current platform, downloads the matching GitHub Release archive, extracts `oxidns` / `oxidns.exe`, `config.yaml`, and `webui/`, then installs and starts OxiDNS as a system service by default.
+
+Linux / macOS:
+
+```bash
+curl -fsSL https://oxidns.org/install.sh | sudo sh
+```
+
+Elevated Windows PowerShell:
+
+```powershell
+irm https://oxidns.org/install.ps1 | iex
+```
+
+Default install locations:
+
+| Platform | Default install directory | PATH behavior |
+| --- | --- | --- |
+| Linux / macOS service install with `sudo` | `/opt/oxidns` | Creates `/usr/local/bin/oxidns`, then installs and starts the system service |
+| Windows service install from elevated PowerShell | `%ProgramFiles%\OxiDNS` | Adds the install directory to the Machine PATH, then installs and starts the service |
+| Linux / macOS portable install | `~/.oxidns` | Set `OXIDNS_INSTALL_SERVICE=0`; creates `~/.local/bin/oxidns` |
+| Windows portable install | `%LOCALAPPDATA%\OxiDNS` | Set `OXIDNS_INSTALL_SERVICE=0`; adds the install directory to the user PATH |
+
+Running the installer again updates the binary and `webui/`. If `config.yaml` already exists in the install directory, the installer keeps it and writes the release default config as `config.yaml.example`.
+
+Install a specific version:
+
+```bash
+curl -fsSL https://oxidns.org/install.sh | sudo env OXIDNS_VERSION=v1.0.1 sh
+```
+
+```powershell
+$env:OXIDNS_VERSION = "v1.0.1"; irm https://oxidns.org/install.ps1 | iex
+```
+
+Common environment variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `OXIDNS_VERSION` | Release tag, defaults to `latest` |
+| `OXIDNS_INSTALL_DIR` | Override the install directory |
+| `OXIDNS_BIN_DIR` | Override the command-link directory on Linux / macOS |
+| `OXIDNS_TARGET` | Override the release target, for example `x86_64-unknown-linux-musl` |
+| `OXIDNS_NO_PATH=1` | Do not create a command link or update PATH |
+| `OXIDNS_INSTALL_SERVICE=0` | Skip system service installation and use portable install mode |
+| `OXIDNS_START_SERVICE=0` | Install the service but do not start it immediately |
+
+Portable install on Linux / macOS:
+
+```bash
+curl -fsSL https://oxidns.org/install.sh | env OXIDNS_INSTALL_SERVICE=0 sh
+```
+
+Portable install on Windows:
+
+```powershell
+$env:OXIDNS_INSTALL_SERVICE = "0"; irm https://oxidns.org/install.ps1 | iex
+```
+
+After a portable install, start OxiDNS with:
+
+```bash
+oxidns start -c ~/.oxidns/config.yaml -d ~/.oxidns
+```
+
+Windows:
+
+```powershell
+oxidns.exe start -c "$env:LOCALAPPDATA\OxiDNS\config.yaml" -d "$env:LOCALAPPDATA\OxiDNS"
+```
+
+The default config includes a `:53` listener. On Linux / macOS, portable installs run by regular users usually cannot bind port 53; for local evaluation, remove `udp_server_53` first or use the default system service install.
+
+### Uninstall
+
+The uninstall script removes the binary, `webui/`, and PATH entry while keeping `config.yaml` by default.
+
+Linux / macOS:
+
+```bash
+curl -fsSL https://oxidns.org/uninstall.sh | sudo sh
+```
+
+Elevated Windows PowerShell:
+
+```powershell
+irm https://oxidns.org/uninstall.ps1 | iex
+```
+
+If you installed with `sudo` or a custom `OXIDNS_INSTALL_DIR`, use the same privilege level and directory variable when uninstalling.
+
+Remove the install directory and config too:
+
+```bash
+curl -fsSL https://oxidns.org/uninstall.sh | sudo env OXIDNS_PURGE=1 sh
+```
+
+```powershell
+$env:OXIDNS_PURGE = "1"; irm https://oxidns.org/uninstall.ps1 | iex
+```
+
+Common uninstall variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `OXIDNS_INSTALL_DIR` | Override the uninstall target; keep it aligned with the install command |
+| `OXIDNS_BIN_DIR` | Override the command-link directory on Linux / macOS |
+| `OXIDNS_NO_PATH=1` | Do not remove the command link or user PATH entry |
+| `OXIDNS_UNINSTALL_SERVICE=1` | Force operating-system service uninstall; by default this is attempted automatically as root / administrator |
+| `OXIDNS_PURGE=1` | Remove the full install directory, including config |
+
+## 2. Build From Source
 
 This path is suitable for debugging, code changes, or cases where packaged builds are not used.
 
@@ -39,13 +152,14 @@ cargo run -- check -c config.yaml
 cargo run -- start -c config.yaml -l debug
 ```
 
-## 2. Install From GitHub Release Archives
+## 3. Install From GitHub Release Archives
 
 The release workflow generates standalone binaries for multiple platforms. Each archive includes:
 
 - `oxidns` or `oxidns.exe`
 - `config.yaml`
 - `LICENSE`
+- `webui/`
 
 Release page:
 
@@ -142,7 +256,7 @@ Download the matching `.zip`, extract it, then run:
 .\oxidns.exe start -c .\config.yaml
 ```
 
-## 3. Install From Debian Packages
+## 4. Install From Debian Packages
 
 The release workflow currently builds `.deb` packages for:
 
@@ -186,7 +300,7 @@ If the service is not running yet:
 sudo systemctl enable --now oxidns
 ```
 
-## 4. Run With Docker
+## 5. Run With Docker
 
 The repository publishes a GHCR image at:
 
@@ -257,14 +371,14 @@ Follow logs with:
 docker compose logs -f oxidns
 ```
 
-## 5. Selection Guide
+## 6. Selection Guide
 
-- Fastest evaluation path: download a release archive
+- Fastest evaluation path: use the one-command installer for the latest release, or download a release archive manually
 - Long-running Linux service: prefer the Debian package
 - Container platforms: use the GHCR Docker or Docker Hub image
 - Development or custom builds: compile from source
 
-## 6. Next Reading
+## 7. Next Reading
 
 After the first successful start, continue with:
 

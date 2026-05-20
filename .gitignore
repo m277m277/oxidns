@@ -94,6 +94,11 @@ atlassian-ide-plugin.xml
 docs/.docusaurus/
 docs/build/
 docs/node_modules/
+docs/static/install.sh
+docs/static/install.ps1
+docs/static/uninstall.sh
+docs/static/uninstall.ps1
+docs/static/scripts/
 cmake-build-*/
 out/
 .history

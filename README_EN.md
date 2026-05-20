@@ -140,6 +140,34 @@ It also does not try to replace every DNS tool:
 
 ## Download
 
+Install the latest release with one command. By default this installs and starts OxiDNS as a system service:
+
+```bash
+curl -fsSL https://oxidns.org/install.sh | sudo sh
+```
+
+Elevated Windows PowerShell:
+
+```powershell
+irm https://oxidns.org/install.ps1 | iex
+```
+
+By default, Linux / macOS installs into `/opt/oxidns`, creates `/usr/local/bin/oxidns`, and installs and starts the system service. Windows installs into `%ProgramFiles%\OxiDNS`, adds it to the Machine PATH, and installs and starts the service. For a portable user install, set `OXIDNS_INSTALL_SERVICE=0`; see Quick Start for details.
+
+Uninstall while keeping `config.yaml`:
+
+```bash
+curl -fsSL https://oxidns.org/uninstall.sh | sudo sh
+```
+
+Elevated Windows PowerShell:
+
+```powershell
+irm https://oxidns.org/uninstall.ps1 | iex
+```
+
+If you installed with `sudo` or a custom `OXIDNS_INSTALL_DIR`, use the same privilege level and directory variable when uninstalling.
+
 If you want to download a GitHub release directly, use this platform guide:
 
 | System / Environment | Recommended release asset |
@@ -154,6 +182,7 @@ If you want to download a GitHub release directly, use this platform guide:
 | macOS Intel | `oxidns-x86_64-apple-darwin.tar.gz` |
 | macOS Apple Silicon | `oxidns-aarch64-apple-darwin.tar.gz` |
 | Windows x64 | `oxidns-x86_64-pc-windows-msvc.zip` |
+| Windows 32-bit | `oxidns-i686-pc-windows-msvc.zip` |
 | Windows ARM64 | `oxidns-aarch64-pc-windows-msvc.zip` |
 | FreeBSD x86_64 | `oxidns-x86_64-unknown-freebsd.tar.gz` |
 
