@@ -273,6 +273,7 @@ export interface QueryRecordFilters {
   clientIp?: string;
   rcode?: string;
   status?: QueryRecordStatusFilter;
+  matcherTag?: string;
 }
 
 export type QueryRecorderPluginStatsKind =
@@ -612,6 +613,7 @@ function appendQueryRecordFilters(
   if (options.status && options.status !== "all") {
     params.set("status", options.status);
   }
+  if (options.matcherTag) params.set("matcher_tag", options.matcherTag);
 }
 
 export function apiHeaders() {

@@ -100,22 +100,55 @@ function getEdgeStyle(field: string) {
   const kind = classifyEdge(field);
   if (kind === "match") {
     return {
-      style: { stroke: EDGE_COLOR_MATCH, strokeDasharray: "5 3", strokeWidth: 1.6 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR_MATCH, width: 12, height: 12 },
-      labelStyle: { fill: EDGE_COLOR_MATCH, fontSize: 10, fontFamily: "monospace", fontWeight: 600 },
+      style: {
+        stroke: EDGE_COLOR_MATCH,
+        strokeDasharray: "5 3",
+        strokeWidth: 1.6,
+      },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: EDGE_COLOR_MATCH,
+        width: 12,
+        height: 12,
+      },
+      labelStyle: {
+        fill: EDGE_COLOR_MATCH,
+        fontSize: 10,
+        fontFamily: "monospace",
+        fontWeight: 600,
+      },
     };
   }
   if (kind === "exec") {
     return {
       style: { stroke: EDGE_COLOR_EXEC, strokeWidth: 2.2 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR_EXEC, width: 14, height: 14 },
-      labelStyle: { fill: EDGE_COLOR_EXEC, fontSize: 10, fontFamily: "monospace", fontWeight: 600 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: EDGE_COLOR_EXEC,
+        width: 14,
+        height: 14,
+      },
+      labelStyle: {
+        fill: EDGE_COLOR_EXEC,
+        fontSize: 10,
+        fontFamily: "monospace",
+        fontWeight: 600,
+      },
     };
   }
   return {
     style: { stroke: EDGE_COLOR_STRUCTURAL, strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR_STRUCTURAL, width: 10, height: 10 },
-    labelStyle: { fill: EDGE_COLOR_STRUCTURAL, fontSize: 10, fontFamily: "monospace" },
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      color: EDGE_COLOR_STRUCTURAL,
+      width: 10,
+      height: 10,
+    },
+    labelStyle: {
+      fill: EDGE_COLOR_STRUCTURAL,
+      fontSize: 10,
+      fontFamily: "monospace",
+    },
   };
 }
 
@@ -196,8 +229,7 @@ export function TopologyView({
   // filteredReachableByRoot excludes nodes only reachable via inlined paths,
   // so floating "orphan" nodes (e.g. raw providers) never appear in the graph.
   const visibleTags =
-    topology.filteredReachableByRoot.get(activeRoot ?? "") ??
-    new Set<string>();
+    topology.filteredReachableByRoot.get(activeRoot ?? "") ?? new Set<string>();
   const layout = layoutTopology(topology, activeRoot, visibleTags);
 
   const nodes: Node[] = layout.nodes.map(({ node, x, y, isRoot }) => ({
@@ -286,8 +318,11 @@ export function TopologyView({
 
   const graphNodeCount = visibleTags.size;
   // Inlined count = full reachable - filtered reachable for this root
-  const fullReachable = topology.reachableByRoot.get(activeRoot ?? "") ?? new Set<string>();
-  const inlinedCount = [...fullReachable].filter((t) => topology.inlinedTags.has(t)).length;
+  const fullReachable =
+    topology.reachableByRoot.get(activeRoot ?? "") ?? new Set<string>();
+  const inlinedCount = [...fullReachable].filter((t) =>
+    topology.inlinedTags.has(t),
+  ).length;
 
   return (
     <div className="space-y-3">
@@ -408,7 +443,9 @@ function TopologyLegend() {
           ] as const
         ).map(({ kind, label }) => (
           <div key={kind} className="flex items-center gap-1.5">
-            <div className={cn("h-2.5 w-2.5 rounded-sm", kindAccentBgClass(kind))} />
+            <div
+              className={cn("h-2.5 w-2.5 rounded-sm", kindAccentBgClass(kind))}
+            />
             <span className="text-foreground">{label}</span>
           </div>
         ))}
@@ -502,7 +539,9 @@ function SequenceFlowNode({
   // another sequence node (i.e. another card on the canvas). For exec values
   // that get inlined as a card inside the row, no external edge is drawn so
   // we don't need a per-row handle.
-  const ruleHasOutgoingSequenceCall = (rule: SequenceFlowReport["rules"][number]) => {
+  const ruleHasOutgoingSequenceCall = (
+    rule: SequenceFlowReport["rules"][number],
+  ) => {
     const target = rule.exec?.target_tag;
     if (!target) return false;
     return sequenceFlowsByTag.has(target) && !inlinedTags.has(target);
@@ -631,7 +670,10 @@ function SequenceFlowNode({
                       );
                     }
                     return (
-                      <SequenceExpressionChip key={key} expression={expression} />
+                      <SequenceExpressionChip
+                        key={key}
+                        expression={expression}
+                      />
                     );
                   })
                 )}
@@ -726,7 +768,11 @@ export function InlinePluginCard({
   plugin?: PluginInstance;
   onSelect: (plugin: PluginInstance) => void;
 }) {
-  const iconNode = node ?? { tag, kind: context === "match" ? "matcher" : "executor", plugin_type: "" };
+  const iconNode = node ?? {
+    tag,
+    kind: context === "match" ? "matcher" : "executor",
+    plugin_type: "",
+  };
 
   return (
     <div
@@ -838,7 +884,8 @@ export function SequenceCallChip({
       className={cn(
         "flex items-center gap-1.5 rounded border px-2 py-1 transition-colors",
         "border-sky-300/80 bg-sky-50/70 dark:border-sky-700/60 dark:bg-sky-950/40",
-        plugin && "cursor-pointer hover:border-sky-500 dark:hover:border-sky-500",
+        plugin &&
+          "cursor-pointer hover:border-sky-500 dark:hover:border-sky-500",
       )}
       onClick={(e) => {
         e.stopPropagation();
@@ -974,10 +1021,16 @@ function TopologyNodeCard({
           )}
         </div>
         <div className="mt-2 flex flex-wrap gap-1">
-          <Badge variant="outline" className={cn("px-1.5 py-0 text-[10px]", badgeCls)}>
+          <Badge
+            variant="outline"
+            className={cn("px-1.5 py-0 text-[10px]", badgeCls)}
+          >
             {PLUGIN_TYPE_LABELS[node.kind as PluginType] ?? node.kind}
           </Badge>
-          <Badge variant="secondary" className="bg-muted/60 px-1.5 py-0 text-[10px] text-muted-foreground">
+          <Badge
+            variant="secondary"
+            className="bg-muted/60 px-1.5 py-0 text-[10px] text-muted-foreground"
+          >
             {node.plugin_type}
           </Badge>
         </div>
@@ -1005,10 +1058,8 @@ function SequenceExpressionChip({
             "max-w-48 truncate rounded border bg-background px-1.5 py-0.5 text-left font-mono text-[10px] transition-colors hover:border-primary",
             expression.kind === "quick_setup" &&
               "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300",
-            expression.kind === "builtin" &&
-              "border-primary/40 text-primary",
-            expression.kind === "plugin" &&
-              "border-border text-foreground",
+            expression.kind === "builtin" && "border-primary/40 text-primary",
+            expression.kind === "plugin" && "border-border text-foreground",
           )}
           onClick={(event) => event.stopPropagation()}
         >
@@ -1069,9 +1120,7 @@ function buildTopologyModel(graph: DependencyGraphReport): TopologyModel {
   const allTags = new Set(graph.nodes.map((node) => node.tag));
   const nodesByTag = new Map(graph.nodes.map((node) => [node.tag, node]));
   const referencedTags = new Set(graph.edges.map((edge) => edge.target_tag));
-  const initIndex = new Map(
-    graph.init_order.map((tag, index) => [tag, index]),
-  );
+  const initIndex = new Map(graph.init_order.map((tag, index) => [tag, index]));
   const edgesBySource = new Map<string, DependencyGraphEdge[]>();
   const edgesByTarget = new Map<string, DependencyGraphEdge[]>();
 
@@ -1149,7 +1198,10 @@ function buildTopologyModel(graph: DependencyGraphReport): TopologyModel {
     for (const [tag] of nodesByTag) {
       if (inlinedTags.has(tag) || sequenceFlowsByTag.has(tag)) continue;
       const parents = edgesByTarget.get(tag) ?? [];
-      if (parents.length > 0 && parents.every((e) => inlinedTags.has(e.source_tag))) {
+      if (
+        parents.length > 0 &&
+        parents.every((e) => inlinedTags.has(e.source_tag))
+      ) {
         inlinedTags.add(tag);
         changed = true;
       }
@@ -1308,10 +1360,7 @@ function layoutTopology(
   roots.forEach((root) => {
     const h = estimateNodeHeight(root.tag, topology.sequenceFlowsByTag);
     const col = occupiedByDepth.get(0) ?? [];
-    const top =
-      col.length > 0
-        ? (col[col.length - 1]?.bottom ?? 0) + yGap
-        : 0;
+    const top = col.length > 0 ? (col[col.length - 1]?.bottom ?? 0) + yGap : 0;
     yByTag.set(root.tag, top);
     col.push({ top, bottom: top + h });
     occupiedByDepth.set(0, col);
@@ -1329,7 +1378,10 @@ function layoutTopology(
       .filter((e) => visibleTags.has(e.source_tag))
       .map((e) => {
         const py = yByTag.get(e.source_tag);
-        const ph = estimateNodeHeight(e.source_tag, topology.sequenceFlowsByTag);
+        const ph = estimateNodeHeight(
+          e.source_tag,
+          topology.sequenceFlowsByTag,
+        );
         return py !== undefined ? py + ph / 2 : undefined;
       })
       .filter((c): c is number => c !== undefined);
@@ -1357,7 +1409,10 @@ function layoutTopology(
       .filter((e) => visibleTags.has(e.target_tag))
       .map((e) => {
         const cy = yByTag.get(e.target_tag) ?? 0;
-        const ch = estimateNodeHeight(e.target_tag, topology.sequenceFlowsByTag);
+        const ch = estimateNodeHeight(
+          e.target_tag,
+          topology.sequenceFlowsByTag,
+        );
         return cy + ch / 2;
       });
     if (childCenters.length === 0) continue;
@@ -1499,15 +1554,11 @@ function sequenceExpressionDetail(expression: SequenceFlowExpression) {
 }
 
 function compactText(value: string, maxLength: number) {
-  return value.length > maxLength
-    ? `${value.slice(0, maxLength - 1)}…`
-    : value;
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
 }
 
 // Returns the plugin tag referenced by a quick_setup "$tag" param, or undefined.
-function quickSetupParamTag(
-  expr: SequenceFlowExpression,
-): string | undefined {
+function quickSetupParamTag(expr: SequenceFlowExpression): string | undefined {
   if (expr.kind === "quick_setup" && expr.param?.startsWith("$")) {
     return expr.param.slice(1);
   }

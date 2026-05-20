@@ -292,13 +292,13 @@ export function CreatePluginDialog({
                   }}
                 >
                   {visibleTypes.map((type) => (
-                      <TabsTrigger key={type} value={type} className="gap-1.5">
-                        {typeIcons[type]}
-                        <span className="hidden sm:inline">
-                          {PLUGIN_TYPE_LABELS[type]}
-                        </span>
-                      </TabsTrigger>
-                    ))}
+                    <TabsTrigger key={type} value={type} className="gap-1.5">
+                      {typeIcons[type]}
+                      <span className="hidden sm:inline">
+                        {PLUGIN_TYPE_LABELS[type]}
+                      </span>
+                    </TabsTrigger>
+                  ))}
                 </TabsList>
               </div>
               <div className="px-6 py-3">
@@ -319,20 +319,20 @@ export function CreatePluginDialog({
               </div>
               <ScrollArea className="h-[min(560px,calc(90vh-180px))] px-6">
                 {visibleTypes.map((type) => (
-                    <TabsContent
-                      key={type}
-                      value={type}
-                      className="mt-0 grid gap-3 pb-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                    >
-                      {pluginsByType[type].length > 0 ? (
-                        pluginsByType[type].map(renderPluginKindCard)
-                      ) : (
-                        <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                          没有匹配的插件
-                        </div>
-                      )}
-                    </TabsContent>
-                  ))}
+                  <TabsContent
+                    key={type}
+                    value={type}
+                    className="mt-0 grid gap-3 pb-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                  >
+                    {pluginsByType[type].length > 0 ? (
+                      pluginsByType[type].map(renderPluginKindCard)
+                    ) : (
+                      <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                        没有匹配的插件
+                      </div>
+                    )}
+                  </TabsContent>
+                ))}
               </ScrollArea>
             </Tabs>
           </>

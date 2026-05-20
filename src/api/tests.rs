@@ -584,6 +584,10 @@ async fn test_hyper_serves_webui_static_files_and_spa_fallback() {
     fs::write(temp.path().join("index.html"), "<html>oxidns</html>").expect("write index");
     fs::create_dir_all(temp.path().join("assets")).expect("create assets");
     fs::write(temp.path().join("assets/app.js"), "console.log('ok');").expect("write asset");
+    // Mirror Next.js static export: /logs is served by logs.html, and
+    // logs/ exists as an empty metadata directory next to it.
+    fs::write(temp.path().join("logs.html"), "<html>logs</html>").expect("write logs.html");
+    fs::create_dir_all(temp.path().join("logs")).expect("create logs dir");
 
     let addr = reserve_local_addr();
     let hub = test_api_hub_with_webui(
@@ -662,6 +666,26 @@ async fn test_hyper_serves_webui_static_files_and_spa_fallback() {
         .await
         .expect("fallback response");
     assert_eq!(fallback.status(), StatusCode::OK);
+
+    let logs_uri: Uri = format!("http://{addr}/logs").parse().expect("logs uri");
+    let logs = client
+        .request(
+            HyperRequest::builder()
+                .method(Method::GET)
+                .uri(logs_uri)
+                .body(Empty::new())
+                .expect("request"),
+        )
+        .await
+        .expect("logs response");
+    assert_eq!(logs.status(), StatusCode::OK);
+    let logs_body = logs
+        .into_body()
+        .collect()
+        .await
+        .expect("collect logs body")
+        .to_bytes();
+    assert_eq!(logs_body, Bytes::from_static(b"<html>logs</html>"));
 
     let api_unknown_uri: Uri = format!("http://{addr}/api/unknown")
         .parse()

@@ -29,10 +29,7 @@ import {
   type ReloadSnapshot,
   type SystemResponse,
 } from "./oxidns-api";
-import {
-  parsePrometheusMetrics,
-  type PluginMetricsMap,
-} from "./metrics";
+import { parsePrometheusMetrics, type PluginMetricsMap } from "./metrics";
 import {
   annotateApply,
   clearSnapshots,
@@ -265,8 +262,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const response = await validateConfigText(state.configText);
       applyConfigValidationResponse(response, set);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "配置校验失败";
+      const message = error instanceof Error ? error.message : "配置校验失败";
       set({
         configError: message,
         configDiagnostics: [message],
@@ -345,9 +341,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         // and never recovered) — surface it as a failed apply instead of a
         // silent no-op so the pill turns red rather than staying unchanged.
         const message =
-          error instanceof Error
-            ? error.message
-            : "应用失败：无法触发热重载";
+          error instanceof Error ? error.message : "应用失败：无法触发热重载";
         if (version) {
           annotateApply(scope, version, "apply-failed", message);
           set({ configHistory: listSnapshots(scope) });
@@ -604,9 +598,7 @@ function delay(ms: number): Promise<void> {
 // errors are expected and ignored. We treat the reload as done once it is
 // no longer pending/in-progress AND a new completion timestamp appeared
 // (distinct from the pre-reload baseline), or it explicitly failed.
-async function pollReload(
-  baselineCompleted?: number,
-): Promise<ReloadSnapshot> {
+async function pollReload(baselineCompleted?: number): Promise<ReloadSnapshot> {
   const maxAttempts = 40; // ~30s at 750ms intervals
   let last: ReloadSnapshot | null = null;
   for (let i = 0; i < maxAttempts; i += 1) {

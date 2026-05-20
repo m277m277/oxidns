@@ -40,9 +40,7 @@ export function InlineSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger
-        className={`h-8 min-w-0 bg-background ${className ?? ""}`}
-      >
+      <SelectTrigger className={`h-8 min-w-0 bg-background ${className ?? ""}`}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="z-[1200]">
@@ -99,7 +97,9 @@ export function QuickSetupRow({
       </span>
       <InlineSelect
         value={pluginType}
-        onChange={(nextKind) => onChange(formatQuickSetupValue(nextKind, param))}
+        onChange={(nextKind) =>
+          onChange(formatQuickSetupValue(nextKind, param))
+        }
         disabled={readOnly}
         className="w-[9rem] shrink-0"
         options={catalog.map((item) => ({
@@ -162,7 +162,10 @@ export function parseQuickSetupValue(value: string): QuickSetupParts {
   };
 }
 
-export function formatQuickSetupValue(pluginType: string, param: string): string {
+export function formatQuickSetupValue(
+  pluginType: string,
+  param: string,
+): string {
   return param.trim() ? `${pluginType} ${param.trim()}` : pluginType;
 }
 

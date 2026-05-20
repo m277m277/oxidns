@@ -65,7 +65,9 @@ export function PluginReferencePicker({
   const touchYRef = useRef<number | null>(null);
   const normalizedValue = stripReferencePrefix(value);
   const normalizedSearch = search.trim().toLowerCase();
-  const selectedPlugin = plugins.find((plugin) => plugin.name === normalizedValue);
+  const selectedPlugin = plugins.find(
+    (plugin) => plugin.name === normalizedValue,
+  );
   const createType = referenceTypes?.[0];
 
   const filteredPlugins = plugins.filter((plugin) => {
@@ -120,7 +122,9 @@ export function PluginReferencePicker({
                 {normalizedValue}
               </span>
             ) : (
-              <span className="text-xs text-muted-foreground">{placeholder}</span>
+              <span className="text-xs text-muted-foreground">
+                {placeholder}
+              </span>
             )}
           </Button>
         </PopoverTrigger>

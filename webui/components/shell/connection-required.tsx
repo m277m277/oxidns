@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { PlugZap, FileCode2 } from "lucide-react";
+import { PlugZap, FileCode2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
 import {
@@ -11,6 +11,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+export function ConnectionPending() {
+  return (
+    <main className="oxidns-dialog-scrollbar min-h-0 flex-1 overflow-auto p-6">
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            正在连接后台服务
+          </CardTitle>
+          <CardDescription>
+            正在通过默认地址连接 OxiDNS 管理 API，请稍候。
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    </main>
+  );
+}
 
 export function ConnectionRequired() {
   const setEditorMode = useAppStore((s) => s.setEditorMode);

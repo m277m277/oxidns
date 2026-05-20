@@ -143,9 +143,7 @@ export function ConfigSyncControl() {
   };
 
   const canDiff = Boolean(lastGood && lastGood.content !== configText);
-  const canRestore = Boolean(
-    lastGood && lastGood.version !== configVersion,
-  );
+  const canRestore = Boolean(lastGood && lastGood.version !== configVersion);
 
   const pillClass = tone === "neutral" ? "" : PILL_TONE[tone];
 
@@ -209,11 +207,7 @@ export function ConfigSyncControl() {
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="rounded-md"
-                >
+                <Button variant="ghost" size="icon-sm" className="rounded-md">
                   <MoreHorizontal className="h-4 w-4" />
                   <span className="sr-only">配置操作</span>
                 </Button>

@@ -11,7 +11,10 @@ import { ConfigHistorySheet } from "@/components/config/config-history-sheet";
 import { useAppStore } from "@/lib/store";
 import { useAuthStore } from "@/lib/auth-store";
 import { AppHeader } from "@/components/shell/app-header";
-import { ConnectionRequired } from "@/components/shell/connection-required";
+import {
+  ConnectionRequired,
+  ConnectionPending,
+} from "@/components/shell/connection-required";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 export default function ConsoleLayout({
@@ -27,11 +30,31 @@ export default function ConsoleLayout({
   const isOfflineMode = useAppStore((s) => s.isOfflineMode);
   const exitOfflineMode = useAppStore((s) => s.exitOfflineMode);
   const isConnected = useAuthStore((s) => s.isConnected);
+  const isConnecting = useAuthStore((s) => s.isConnecting);
+  const connectionError = useAuthStore((s) => s.connectionError);
+  const hasAttemptedAutoConnect = useAuthStore(
+    (s) => s.hasAttemptedAutoConnect,
+  );
+  const attemptAutoConnect = useAuthStore((s) => s.attemptAutoConnect);
   const isAuthHydrated = useAuthStore((s) => s.isHydrated);
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const sidebarStateBeforeEditor = useRef(sidebarOpen);
   const previousEditorMode = useRef(editorMode);
+
+  // Once the store has hydrated, eagerly probe the configured backend (default
+  // `/api`). Only fall back to the connection prompt if that attempt fails.
+  useEffect(() => {
+    if (!isAuthHydrated) return;
+    void attemptAutoConnect();
+  }, [isAuthHydrated, attemptAutoConnect]);
+
+  // While the initial auto-connect is still in flight, neither render
+  // backend-dependent pages nor the "需要连接" prompt; show a pending state.
+  const isAutoConnectPending =
+    isAuthHydrated &&
+    !isConnected &&
+    (!hasAttemptedAutoConnect || (isConnecting && !connectionError));
   const canUseBackendPages =
     !isAuthHydrated || isConnected || pathname === "/settings";
 
@@ -103,6 +126,11 @@ export default function ConsoleLayout({
             </div>
           ) : canUseBackendPages ? (
             children
+          ) : isAutoConnectPending ? (
+            <>
+              <AppHeader title="连接后台服务" />
+              <ConnectionPending />
+            </>
           ) : (
             <>
               <AppHeader title="连接后台服务" />

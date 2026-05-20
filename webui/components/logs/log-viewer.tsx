@@ -64,9 +64,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
   const elapsed = (entry.elapsed_ms / 1000).toFixed(3);
   return (
     <div className="flex min-w-full w-max items-baseline gap-2 rounded px-1 py-[1px] whitespace-nowrap hover:bg-white/5">
-      <span className="shrink-0 text-zinc-600 tabular-nums">
-        T+{elapsed}
-      </span>
+      <span className="shrink-0 text-zinc-600 tabular-nums">T+{elapsed}</span>
       <LevelBadge level={entry.level} />
       <span className="shrink-0 max-w-[28ch] truncate text-zinc-500">
         {entry.target}

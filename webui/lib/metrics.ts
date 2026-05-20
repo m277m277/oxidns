@@ -287,7 +287,13 @@ function applyDerivedSpec(
     case "latency": {
       const latency = averageLatencyForPrefix(totals, spec.prefix);
       if (latency !== undefined) {
-        pushDisplayMetric(out, seen, spec.label, `${latency.toFixed(1)} ms`, limit);
+        pushDisplayMetric(
+          out,
+          seen,
+          spec.label,
+          `${latency.toFixed(1)} ms`,
+          limit,
+        );
       }
       break;
     }
@@ -300,9 +306,18 @@ function applyDerivedSpec(
     }
     case "percent_of_sum": {
       const numerator = totals.get(spec.numerator);
-      const total = spec.terms.reduce((acc, t) => acc + (totals.get(t) ?? 0), 0);
+      const total = spec.terms.reduce(
+        (acc, t) => acc + (totals.get(t) ?? 0),
+        0,
+      );
       if (numerator !== undefined && total > 0) {
-        pushDisplayMetric(out, seen, spec.label, formatPercent(numerator / total), limit);
+        pushDisplayMetric(
+          out,
+          seen,
+          spec.label,
+          formatPercent(numerator / total),
+          limit,
+        );
       }
       break;
     }

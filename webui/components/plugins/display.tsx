@@ -40,8 +40,7 @@ export const pluginTypeAccentHex: Record<PluginType, string> = {
 export const pluginTypeColors: Record<PluginType, string> = {
   server:
     "bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-300",
-  executor:
-    "bg-sky-500/15 text-sky-700 border-sky-500/30 dark:text-sky-300",
+  executor: "bg-sky-500/15 text-sky-700 border-sky-500/30 dark:text-sky-300",
   matcher:
     "bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-300",
   provider:
@@ -58,7 +57,8 @@ export const pluginTypeAccentBg: Record<PluginType, string> = {
 
 // Soft tinted icon chip background with matching text colour.
 export const pluginTypeIconBg: Record<PluginType, string> = {
-  server: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  server:
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   executor: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
   matcher: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   provider:
@@ -70,8 +70,7 @@ export const pluginTypeIconBg: Record<PluginType, string> = {
 export const pluginTypeBadgeOutline: Record<PluginType, string> = {
   server:
     "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300",
-  executor:
-    "border-sky-300 text-sky-700 dark:border-sky-700 dark:text-sky-300",
+  executor: "border-sky-300 text-sky-700 dark:border-sky-700 dark:text-sky-300",
   matcher:
     "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300",
   provider:

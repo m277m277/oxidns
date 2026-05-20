@@ -140,14 +140,13 @@ export function SystemMetrics() {
         <CardContent className="space-y-2">
           <div>
             <div
-              className={cn(
-                "text-2xl font-bold font-mono",
-                usageColor(cpuPct),
-              )}
+              className={cn("text-2xl font-bold font-mono", usageColor(cpuPct))}
             >
               {system ? `${cpuPct.toFixed(1)}%` : "-"}
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">进程 CPU 使用率</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              进程 CPU 使用率
+            </p>
           </div>
           <Progress
             value={cpuPct}
@@ -166,10 +165,7 @@ export function SystemMetrics() {
         <CardContent className="space-y-2">
           <div>
             <div
-              className={cn(
-                "text-2xl font-bold font-mono",
-                usageColor(memPct),
-              )}
+              className={cn("text-2xl font-bold font-mono", usageColor(memPct))}
             >
               {system ? formatMemory(memMb) : "-"}
             </div>
@@ -204,9 +200,7 @@ export function SystemMetrics() {
             </p>
           </div>
           <div className="border-t border-border/50 pt-2 flex items-center gap-3 text-xs text-muted-foreground">
-            {serverCount !== undefined && (
-              <span>{serverCount} 服务器</span>
-            )}
+            {serverCount !== undefined && <span>{serverCount} 服务器</span>}
             <span
               className={cn(
                 configError ? "text-destructive" : "text-green-500",

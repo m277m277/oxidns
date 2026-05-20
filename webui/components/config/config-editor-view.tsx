@@ -1,7 +1,10 @@
 "use client";
 
 import { useAppStore } from "@/lib/store";
-import { YamlEditor, type YamlEditorHandle } from "@/components/config/yaml-editor";
+import {
+  YamlEditor,
+  type YamlEditorHandle,
+} from "@/components/config/yaml-editor";
 import { PluginIndexPanel } from "@/components/config/plugin-index-panel";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,9 +57,7 @@ export function ConfigEditorView() {
   useEffect(() => {
     const mac =
       typeof navigator !== "undefined" &&
-      /mac|iphone|ipad|ipod/i.test(
-        navigator.platform || navigator.userAgent,
-      );
+      /mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent);
     const timer = window.setTimeout(() => setIsMac(mac), 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -265,23 +266,35 @@ export function ConfigEditorView() {
               />
             </CardContent>
             <div className="border-t px-3 py-3 flex-shrink-0 space-y-2">
-              <p className="text-xs text-muted-foreground font-medium mb-1.5">快捷键</p>
+              <p className="text-xs text-muted-foreground font-medium mb-1.5">
+                快捷键
+              </p>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">缩进</span>
-                <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">Tab</kbd>
+                <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">
+                  Tab
+                </kbd>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">保存</span>
                 <div className="flex gap-0.5">
-                  <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">{modKey}</kbd>
-                  <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">S</kbd>
+                  <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">
+                    {modKey}
+                  </kbd>
+                  <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">
+                    S
+                  </kbd>
                 </div>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">撤销</span>
                 <div className="flex gap-0.5">
-                  <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">{modKey}</kbd>
-                  <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">Z</kbd>
+                  <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">
+                    {modKey}
+                  </kbd>
+                  <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs">
+                    Z
+                  </kbd>
                 </div>
               </div>
             </div>

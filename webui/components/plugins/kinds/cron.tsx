@@ -156,8 +156,7 @@ export function CronComposer({
   const [yamlError, setYamlError] = useState<string | null>(null);
 
   const jobs = parseCronJobs(value.jobs);
-  const timezone =
-    typeof value.timezone === "string" ? value.timezone : "";
+  const timezone = typeof value.timezone === "string" ? value.timezone : "";
 
   const updateJobs = (nextJobs: CronJob[]) => {
     onChange({ ...value, jobs: serializeCronJobs(nextJobs) });
@@ -166,7 +165,9 @@ export function CronComposer({
   const addJob = () => updateJobs([...jobs, createEmptyCronJob()]);
 
   const updateJob = (jobId: string, patch: Partial<CronJob>) => {
-    updateJobs(jobs.map((job) => (job.id === jobId ? { ...job, ...patch } : job)));
+    updateJobs(
+      jobs.map((job) => (job.id === jobId ? { ...job, ...patch } : job)),
+    );
   };
 
   const deleteJob = (jobId: string) => {
@@ -335,7 +336,11 @@ function CronJobCard({
           <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
           {readOnly ? (
             <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">
-              {job.name || <span className="text-muted-foreground">未命名任务 #{index + 1}</span>}
+              {job.name || (
+                <span className="text-muted-foreground">
+                  未命名任务 #{index + 1}
+                </span>
+              )}
             </span>
           ) : (
             <Input
@@ -471,7 +476,10 @@ function CronExecutorEditor({
           value={localMode}
           onChange={(m) => handleModeChange(m as ExecutorItemMode)}
           disabled={readOnly}
-          className={cn("shrink-0", localMode === "quick_setup" ? "w-[4.5rem]" : "w-[4.5rem]")}
+          className={cn(
+            "shrink-0",
+            localMode === "quick_setup" ? "w-[4.5rem]" : "w-[4.5rem]",
+          )}
           options={Object.entries(executorModeLabels).map(([value, label]) => ({
             value,
             label,
@@ -545,7 +553,11 @@ function CreateDependencyCronButton() {
 
 // ─── CronDetail (kind component entry point) ─────────────────────────────────
 
-function CronDetail({ plugin, chartData, onClose }: PluginDetailComponentProps) {
+function CronDetail({
+  plugin,
+  chartData,
+  onClose,
+}: PluginDetailComponentProps) {
   const updatePluginConfig = useAppStore((state) => state.updatePluginConfig);
   const saveConfig = useAppStore((state) => state.saveConfig);
   const isConfigSaving = useAppStore((state) => state.isConfigSaving);

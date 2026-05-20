@@ -55,19 +55,42 @@ impl StaticFileServer {
             return simple_response(StatusCode::NOT_FOUND, Bytes::from("404 Not Found"));
         };
 
-        let candidate = if relative_path.as_os_str().is_empty() {
-            self.root.join(&self.index)
-        } else {
-            self.root.join(&relative_path)
-        };
-
-        let response_path = match fs::metadata(&candidate).await {
-            Ok(metadata) if metadata.is_file() => candidate,
-            Ok(metadata) if metadata.is_dir() => candidate.join(&self.index),
-            _ => self.root.join(&self.index),
-        };
-
+        let response_path = self.resolve_path(&relative_path).await;
         self.file_response(&response_path, head_only).await
+    }
+
+    // Resolve a request path to an on-disk file. Order:
+    // 1. Exact file at <root>/<path>.
+    // 2. Directory index at <root>/<path>/<index>.
+    // 3. Sibling <root>/<path>.html (Next.js static export emits clean URLs like
+    //    /logs → logs.html alongside an empty logs/ directory of build metadata, so
+    //    refreshing /logs must serve logs.html, not 404).
+    // 4. Fallback to <root>/<index> so SPA-style client routes still load.
+    async fn resolve_path(&self, relative: &Path) -> PathBuf {
+        if relative.as_os_str().is_empty() {
+            return self.root.join(&self.index);
+        }
+
+        let primary = self.root.join(relative);
+        match fs::metadata(&primary).await {
+            Ok(metadata) if metadata.is_file() => return primary,
+            Ok(metadata) if metadata.is_dir() => {
+                let nested = primary.join(&self.index);
+                if is_existing_file(&nested).await {
+                    return nested;
+                }
+            }
+            _ => {}
+        }
+
+        if primary.extension().is_none() {
+            let sibling = primary.with_extension("html");
+            if is_existing_file(&sibling).await {
+                return sibling;
+            }
+        }
+
+        self.root.join(&self.index)
     }
 
     async fn file_response(&self, path: &Path, head_only: bool) -> ApiResponse {
@@ -106,6 +129,13 @@ impl StaticFileServer {
         );
         response
     }
+}
+
+async fn is_existing_file(path: &Path) -> bool {
+    fs::metadata(path)
+        .await
+        .map(|metadata| metadata.is_file())
+        .unwrap_or(false)
 }
 
 pub(super) fn match_static_path(path: &str) -> Option<PathBuf> {

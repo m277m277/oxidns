@@ -16,10 +16,12 @@ export interface AuthState {
   isConnected: boolean;
   isConnecting: boolean;
   isHydrated: boolean;
+  hasAttemptedAutoConnect: boolean;
   connectionError: string | null;
 
   setServerConfig: (config: ServerConfig) => void;
   connect: (config?: ServerConfig) => Promise<boolean>;
+  attemptAutoConnect: () => Promise<void>;
   markHydrated: () => void;
 }
 
@@ -36,6 +38,7 @@ export const useAuthStore = create<AuthState>()(
       isConnected: false,
       isConnecting: false,
       isHydrated: false,
+      hasAttemptedAutoConnect: false,
       connectionError: null,
 
       setServerConfig: (config) =>
@@ -60,7 +63,9 @@ export const useAuthStore = create<AuthState>()(
           if (!url) {
             throw new Error("服务地址不能为空");
           }
-          const headers: Record<string, string> = { Accept: "application/json" };
+          const headers: Record<string, string> = {
+            Accept: "application/json",
+          };
           if (serverConfig.requiresAuth) {
             if (!serverConfig.username || !serverConfig.password) {
               throw new Error("请输入用户名和密码");
@@ -97,14 +102,21 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      attemptAutoConnect: async () => {
+        if (get().hasAttemptedAutoConnect) return;
+        set({ hasAttemptedAutoConnect: true });
+        if (get().isConnecting) return;
+        await get().connect();
+      },
+
       markHydrated: () => set({ isHydrated: true }),
     }),
     {
       name: "oxidns-auth",
+      // Don't persist live connection flags: every page load should
+      // re-verify the backend before assuming we're online.
       partialize: (state) => ({
         serverConfig: state.serverConfig,
-        isAuthenticated: state.isAuthenticated,
-        isConnected: state.isConnected,
       }),
       onRehydrateStorage: () => (state) => {
         state?.markHydrated();

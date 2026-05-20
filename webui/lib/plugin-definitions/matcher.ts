@@ -310,7 +310,12 @@ export const matcherPluginDefinitions: PluginKindDefinition[] = [
       },
       cardPriority: ["ratelimit_allowed_total", "ratelimit_rejected_total"],
       derivedCard: [
-        { kind: "percent_of_sum", numerator: "ratelimit_rejected_total", terms: ["ratelimit_rejected_total", "ratelimit_allowed_total"], label: "拒绝率" },
+        {
+          kind: "percent_of_sum",
+          numerator: "ratelimit_rejected_total",
+          terms: ["ratelimit_rejected_total", "ratelimit_allowed_total"],
+          label: "拒绝率",
+        },
       ],
     } satisfies PluginMetricsDef,
     configSchema: [

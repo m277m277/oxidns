@@ -88,8 +88,7 @@ export function ConfigHistorySheet({
             )}
             {configHistory.map((entry) => {
               const isRunning = entry.version === runningVersion;
-              const isPending =
-                !isRunning && entry.version === configVersion;
+              const isPending = !isRunning && entry.version === configVersion;
               return (
                 <div
                   key={entry.id}

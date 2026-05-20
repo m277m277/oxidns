@@ -38,7 +38,9 @@ type CompletionProvider = Parameters<
 type CompletionProviderFn = NonNullable<
   CompletionProvider["provideCompletionItems"]
 >;
-type HoverProvider = Parameters<MonacoApi["languages"]["registerHoverProvider"]>[1];
+type HoverProvider = Parameters<
+  MonacoApi["languages"]["registerHoverProvider"]
+>[1];
 type HoverProviderFn = NonNullable<HoverProvider["provideHover"]>;
 type MonacoModel = Parameters<CompletionProviderFn>[0];
 type MonacoPosition = Parameters<CompletionProviderFn>[1];
@@ -48,18 +50,26 @@ type MonacoRange = {
   endLineNumber: number;
   endColumn: number;
 };
-type CompletionItem = Awaited<ReturnType<CompletionProviderFn>> extends {
-  suggestions: infer Items;
-}
-  ? Items extends Array<infer Item>
-    ? Item
-    : never
-  : never;
+type CompletionItem =
+  Awaited<ReturnType<CompletionProviderFn>> extends {
+    suggestions: infer Items;
+  }
+    ? Items extends Array<infer Item>
+      ? Item
+      : never
+    : never;
 
 const contextByModel = new Map<string, OxiDnsYamlEditorContext>();
 let registered = false;
 
-const topLevelKeys = ["include", "runtime", "api", "log", "plugins", "init_order"];
+const topLevelKeys = [
+  "include",
+  "runtime",
+  "api",
+  "log",
+  "plugins",
+  "init_order",
+];
 const sequenceControls = ["accept", "return", "reject", "mark", "jump", "goto"];
 const logLevels = ["off", "trace", "debug", "info", "warn", "error"];
 
@@ -72,7 +82,8 @@ function configSubKeysForPath(path: string[]): string[] | null {
     if (!p1) return ["http"];
     if (p1 === "http") {
       if (!p2) return ["listen", "ssl", "auth", "cors", "webui"];
-      if (p2 === "ssl") return ["cert", "key", "client_ca", "require_client_cert"];
+      if (p2 === "ssl")
+        return ["cert", "key", "client_ca", "require_client_cert"];
       if (p2 === "auth") return ["type", "username", "password"];
       if (p2 === "cors") return ["allowed_origins"];
       if (p2 === "webui") return ["root", "index"];
@@ -95,16 +106,16 @@ export function registerOxiDnsYamlLanguage(monaco: MonacoApi) {
     base: "vs-dark",
     inherit: true,
     rules: [
-      { token: "", foreground: "cad3f5" },                           // Text
+      { token: "", foreground: "cad3f5" }, // Text
       { token: "comment", foreground: "5b6078", fontStyle: "italic" }, // Overlay0 — recedes
-      { token: "key", foreground: "8bd5ca" },                        // Teal  — structure
-      { token: "string", foreground: "a6da95" },                     // Green — scalar values
-      { token: "string.value", foreground: "a6da95" },               // Green — quoted values
-      { token: "number", foreground: "eed49f" },                     // Yellow — numerics
-      { token: "keyword", foreground: "c6a0f6" },                    // Mauve  — true/false/null
-      { token: "delimiter", foreground: "363a4f" },                  // Surface0 — near-invisible
-      { token: "tag", foreground: "f5a97f" },                        // Peach  — YAML !! tags
-      { token: "type", foreground: "91d7e3" },                       // Sky    — type annotations
+      { token: "key", foreground: "8bd5ca" }, // Teal  — structure
+      { token: "string", foreground: "a6da95" }, // Green — scalar values
+      { token: "string.value", foreground: "a6da95" }, // Green — quoted values
+      { token: "number", foreground: "eed49f" }, // Yellow — numerics
+      { token: "keyword", foreground: "c6a0f6" }, // Mauve  — true/false/null
+      { token: "delimiter", foreground: "363a4f" }, // Surface0 — near-invisible
+      { token: "tag", foreground: "f5a97f" }, // Peach  — YAML !! tags
+      { token: "type", foreground: "91d7e3" }, // Sky    — type annotations
     ],
     colors: {
       "editor.background": "#00000000",
@@ -131,16 +142,16 @@ export function registerOxiDnsYamlLanguage(monaco: MonacoApi) {
     base: "vs",
     inherit: true,
     rules: [
-      { token: "", foreground: "4c4f69" },                           // Text
+      { token: "", foreground: "4c4f69" }, // Text
       { token: "comment", foreground: "9ca0b0", fontStyle: "italic" }, // Overlay0 — recedes
-      { token: "key", foreground: "179299" },                        // Teal  — structure
-      { token: "string", foreground: "40a02b" },                     // Green — scalar values
-      { token: "string.value", foreground: "40a02b" },               // Green — quoted values
-      { token: "number", foreground: "df8e1d" },                     // Yellow — numerics
-      { token: "keyword", foreground: "8839ef" },                    // Mauve  — true/false/null
-      { token: "delimiter", foreground: "ccd0da" },                  // Surface0 — near-invisible
-      { token: "tag", foreground: "fe640b" },                        // Peach  — YAML !! tags
-      { token: "type", foreground: "04a5e5" },                       // Sky    — type annotations
+      { token: "key", foreground: "179299" }, // Teal  — structure
+      { token: "string", foreground: "40a02b" }, // Green — scalar values
+      { token: "string.value", foreground: "40a02b" }, // Green — quoted values
+      { token: "number", foreground: "df8e1d" }, // Yellow — numerics
+      { token: "keyword", foreground: "8839ef" }, // Mauve  — true/false/null
+      { token: "delimiter", foreground: "ccd0da" }, // Surface0 — near-invisible
+      { token: "tag", foreground: "fe640b" }, // Peach  — YAML !! tags
+      { token: "type", foreground: "04a5e5" }, // Sky    — type annotations
     ],
     colors: {
       "editor.background": "#00000000",
@@ -246,7 +257,11 @@ function buildCompletionItems(
     suggestions.push(...pluginKindSuggestions(monaco, range));
   }
 
-  if (valueKey === "level" && context.variant === "config" && path.includes("log")) {
+  if (
+    valueKey === "level" &&
+    context.variant === "config" &&
+    path.includes("log")
+  ) {
     suggestions.push(...logLevelSuggestions(monaco, range));
   }
 
@@ -258,7 +273,9 @@ function buildCompletionItems(
   if (shouldSuggestSequenceExpressions(context, path, valueKey)) {
     const types = expectedReferenceTypes(context, path, valueKey);
     suggestions.push(...quickSetupSuggestions(monaco, range, types));
-    suggestions.push(...pluginReferenceSuggestions(monaco, context, range, types));
+    suggestions.push(
+      ...pluginReferenceSuggestions(monaco, context, range, types),
+    );
     if (types?.includes("executor")) {
       suggestions.push(...controlSuggestions(monaco, range));
       // jump/goto <tag>: when the user has already typed "jump " or "goto "
@@ -271,7 +288,14 @@ function buildCompletionItems(
           position.lineNumber,
           position.column,
         );
-        suggestions.push(...jumpGotoTagSuggestions(monaco, context, jumpRange, jumpCtx.keyword));
+        suggestions.push(
+          ...jumpGotoTagSuggestions(
+            monaco,
+            context,
+            jumpRange,
+            jumpCtx.keyword,
+          ),
+        );
       }
     }
   }
@@ -327,10 +351,18 @@ function buildLocalDiagnosticMarkers(
   context: OxiDnsYamlEditorContext,
 ) {
   const markers: Parameters<MonacoApi["editor"]["setModelMarkers"]>[2] = [];
-  const pluginTags = new Set((context.plugins ?? []).map((plugin) => plugin.name));
-  const knownPluginKinds = new Set(pluginKindDefinitions.map((definition) => definition.kind));
+  const pluginTags = new Set(
+    (context.plugins ?? []).map((plugin) => plugin.name),
+  );
+  const knownPluginKinds = new Set(
+    pluginKindDefinitions.map((definition) => definition.kind),
+  );
 
-  for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber += 1) {
+  for (
+    let lineNumber = 1;
+    lineNumber <= model.getLineCount();
+    lineNumber += 1
+  ) {
     const line = model.getLineContent(lineNumber);
     const commentStart = line.indexOf("#");
     const checkText = commentStart >= 0 ? line.slice(0, commentStart) : line;
@@ -350,8 +382,13 @@ function buildLocalDiagnosticMarkers(
       });
     }
 
-    if (context.variant === "config" && getYamlPath(model, lineNumber).includes("plugins")) {
-      const typeMatch = checkText.match(/^(\s*)type\s*:\s*["']?([A-Za-z0-9_-]+)/);
+    if (
+      context.variant === "config" &&
+      getYamlPath(model, lineNumber).includes("plugins")
+    ) {
+      const typeMatch = checkText.match(
+        /^(\s*)type\s*:\s*["']?([A-Za-z0-9_-]+)/,
+      );
       const pluginKind = typeMatch?.[2];
       if (pluginKind && !knownPluginKinds.has(pluginKind)) {
         const startColumn = (typeMatch?.[0].lastIndexOf(pluginKind) ?? 0) + 1;
@@ -373,7 +410,9 @@ function buildLocalDiagnosticMarkers(
       const tag = jumpGotoMatch[2];
       if (!pluginTags.has(tag)) {
         const tagStart =
-          (jumpGotoMatch.index ?? 0) + jumpGotoMatch[0].length - jumpGotoMatch[2].length;
+          (jumpGotoMatch.index ?? 0) +
+          jumpGotoMatch[0].length -
+          jumpGotoMatch[2].length;
         const startColumn = tagStart + 1;
         markers.push({
           severity: monaco.MarkerSeverity.Warning,
@@ -406,7 +445,10 @@ function markerFromBackendDiagnostic(
       endLineNumber: diagnostic.end_line ?? diagnostic.line,
       endColumn:
         diagnostic.end_column ??
-        Math.max(diagnostic.column + 1, model.getLineMaxColumn(diagnostic.line)),
+        Math.max(
+          diagnostic.column + 1,
+          model.getLineMaxColumn(diagnostic.line),
+        ),
       source: "OxiDNS",
     };
   }
@@ -446,7 +488,11 @@ function quotedMatch(message: string, pattern: RegExp) {
 
 function locateToken(model: MonacoModel, token: string) {
   const needles = [`$${token}`, token];
-  for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber += 1) {
+  for (
+    let lineNumber = 1;
+    lineNumber <= model.getLineCount();
+    lineNumber += 1
+  ) {
     const line = model.getLineContent(lineNumber);
     for (const needle of needles) {
       const index = line.indexOf(needle);
@@ -500,7 +546,10 @@ function pluginKindSuggestions(
   }));
 }
 
-function logLevelSuggestions(monaco: MonacoApi, range: MonacoRange): CompletionItem[] {
+function logLevelSuggestions(
+  monaco: MonacoApi,
+  range: MonacoRange,
+): CompletionItem[] {
   return logLevels.map((level) => ({
     label: level,
     kind: monaco.languages.CompletionItemKind.EnumMember,
@@ -749,7 +798,9 @@ function fieldsForPath(
   return current ?? fields;
 }
 
-function childFields(field: ConfigField | undefined): ConfigField[] | undefined {
+function childFields(
+  field: ConfigField | undefined,
+): ConfigField[] | undefined {
   if (!field) return undefined;
   if (field.type === "object") return field.fields;
   if (field.type === "array") {
@@ -814,17 +865,18 @@ function getValueKey(prefix: string) {
 
 function isKeyPosition(prefix: string) {
   const trimmed = prefix.trimStart();
-  return !trimmed || /^-\s*[A-Za-z0-9_-]*$/.test(trimmed) || /^[A-Za-z0-9_-]*$/.test(trimmed);
+  return (
+    !trimmed ||
+    /^-\s*[A-Za-z0-9_-]*$/.test(trimmed) ||
+    /^[A-Za-z0-9_-]*$/.test(trimmed)
+  );
 }
 
 function isReferencePrefix(prefix: string) {
   return /(?:^|\s)!?\$[A-Za-z0-9_.-]*$/.test(prefix);
 }
 
-function getTokenAtPosition(
-  model: MonacoModel,
-  position: MonacoPosition,
-) {
+function getTokenAtPosition(model: MonacoModel, position: MonacoPosition) {
   const line = model.getLineContent(position.lineNumber);
   const left = line.slice(0, position.column - 1);
   const right = line.slice(position.column - 1);

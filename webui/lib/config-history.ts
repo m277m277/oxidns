@@ -108,9 +108,7 @@ export function recordSnapshot(
   // Upsert by version: a re-save of identical content is still a real event,
   // so drop any prior entry for this version and re-add it fresh at the head
   // (newest timestamp) instead of silently skipping it.
-  const list = listSnapshots(scope).filter(
-    (s) => s.version !== input.version,
-  );
+  const list = listSnapshots(scope).filter((s) => s.version !== input.version);
   const createdAt = Date.now();
   const entry: ConfigSnapshot = {
     id: `${createdAt}-${input.version.slice(0, 8)}`,

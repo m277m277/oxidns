@@ -76,44 +76,44 @@ export function AppHeader({ title, breadcrumbs = [] }: AppHeaderProps) {
       <div className="ml-auto flex items-center gap-2">
         <ConfigSyncControl />
         <div className="flex items-center rounded-lg border border-border/60 bg-background/80 p-0.5 shadow-sm">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={editorMode ? "secondary" : "ghost"}
-              size="icon-sm"
-              className="rounded-md"
-              onClick={() => setEditorMode(!editorMode)}
-            >
-              {editorMode ? (
-                <LayoutDashboard className="h-4 w-4" />
-              ) : (
-                <Code2 className="h-4 w-4" />
-              )}
-              <span className="sr-only">
-                {editorMode ? "控制台模式" : "编辑器模式"}
-              </span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {editorMode ? "切换到控制台模式" : "切换到编辑器模式"}
-          </TooltipContent>
-        </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={editorMode ? "secondary" : "ghost"}
+                size="icon-sm"
+                className="rounded-md"
+                onClick={() => setEditorMode(!editorMode)}
+              >
+                {editorMode ? (
+                  <LayoutDashboard className="h-4 w-4" />
+                ) : (
+                  <Code2 className="h-4 w-4" />
+                )}
+                <span className="sr-only">
+                  {editorMode ? "控制台模式" : "编辑器模式"}
+                </span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {editorMode ? "切换到控制台模式" : "切换到编辑器模式"}
+            </TooltipContent>
+          </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="rounded-md"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              <span className="sr-only">切换主题</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>切换主题</TooltipContent>
-        </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="rounded-md"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              >
+                <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                <span className="sr-only">切换主题</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>切换主题</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </header>

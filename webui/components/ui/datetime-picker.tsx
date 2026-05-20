@@ -1,12 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  X,
-} from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,9 +20,7 @@ function pad(value: number) {
 // Parses the `datetime-local` string format (`YYYY-MM-DDTHH:mm`) into a Date.
 function parseValue(value: string): Date | null {
   if (!value) return null;
-  const match = value.match(
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/,
-  );
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
   if (!match) return null;
   const [, y, mo, d, h, mi] = match;
   const date = new Date(
@@ -135,11 +128,7 @@ function DateTimePicker({
     onChange("");
   };
 
-  const monthStart = new Date(
-    viewDate.getFullYear(),
-    viewDate.getMonth(),
-    1,
-  );
+  const monthStart = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
   const gridStart = new Date(monthStart);
   gridStart.setDate(1 - monthStart.getDay());
 
@@ -197,11 +186,7 @@ function DateTimePicker({
             aria-label="上个月"
             onClick={() =>
               setViewDate(
-                new Date(
-                  viewDate.getFullYear(),
-                  viewDate.getMonth() - 1,
-                  1,
-                ),
+                new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1),
               )
             }
           >
@@ -217,11 +202,7 @@ function DateTimePicker({
             aria-label="下个月"
             onClick={() =>
               setViewDate(
-                new Date(
-                  viewDate.getFullYear(),
-                  viewDate.getMonth() + 1,
-                  1,
-                ),
+                new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1),
               )
             }
           >
@@ -253,9 +234,7 @@ function DateTimePicker({
                   inMonth && !isSelected && "hover:bg-muted",
                   isSelected &&
                     "bg-primary font-medium text-primary-foreground hover:bg-primary/85",
-                  !isSelected &&
-                    isToday &&
-                    "ring-1 ring-inset ring-primary/40",
+                  !isSelected && isToday && "ring-1 ring-inset ring-primary/40",
                 )}
               >
                 {day.getDate()}
@@ -294,12 +273,7 @@ function DateTimePicker({
           >
             清空
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={goToToday}
-          >
+          <Button type="button" variant="ghost" size="xs" onClick={goToToday}>
             此刻
           </Button>
         </div>

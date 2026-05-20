@@ -287,7 +287,10 @@ export function SequenceComposer({
           </TabsList>
         </Tabs>
         {view === "yaml" && yamlError && (
-          <Badge variant="destructive" className="h-auto gap-1 whitespace-normal py-1">
+          <Badge
+            variant="destructive"
+            className="h-auto gap-1 whitespace-normal py-1"
+          >
             {yamlError}
           </Badge>
         )}
@@ -441,12 +444,22 @@ function SequenceExpandedCanvas({
             )
           ) : (
             <>
-              <Button type="button" variant="outline" size="sm" onClick={onAddRule}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onAddRule}
+              >
                 <Plus className="h-4 w-4" />
                 新增规则
               </Button>
               {onCancelEdit && (
-                <Button type="button" variant="outline" size="sm" onClick={onCancelEdit}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onCancelEdit}
+                >
                   取消
                 </Button>
               )}
@@ -679,7 +692,8 @@ function buildSequenceFlow({
         selectable: false,
         focusable: false,
       });
-      rightColumnBottom = previewY + estimatePreviewHeight(target, plugins) + 40;
+      rightColumnBottom =
+        previewY + estimatePreviewHeight(target, plugins) + 40;
       // Colour the branch edge to match the dependency-graph palette so the
       // canvas reads as the same system: forward references / jumps use sky
       // (executor accent), goto uses red dashed/animated like a back-edge.
@@ -711,9 +725,15 @@ function estimateRuleNodeHeight(rule: SequenceRule) {
   return baseHeight + extraConditions * 56;
 }
 
-function estimatePreviewHeight(targetTag: string, plugins: PluginInstance[]): number {
+function estimatePreviewHeight(
+  targetTag: string,
+  plugins: PluginInstance[],
+): number {
   const targetPlugin = plugins.find(
-    (p) => p.name === targetTag && p.type === "executor" && p.pluginKind === "sequence",
+    (p) =>
+      p.name === targetTag &&
+      p.type === "executor" &&
+      p.pluginKind === "sequence",
   );
   if (!targetPlugin) return 100;
   const targetRules = parseSequenceRules(targetPlugin.config.args);
@@ -977,10 +997,12 @@ function ConditionEditor({
           onChange={(mode) => handleModeChange(mode as ConditionMode)}
           disabled={readOnly}
           className="w-[4.5rem] shrink-0"
-          options={Object.entries(conditionModeLabels).map(([value, label]) => ({
-            value,
-            label,
-          }))}
+          options={Object.entries(conditionModeLabels).map(
+            ([value, label]) => ({
+              value,
+              label,
+            }),
+          )}
         />
         {(localMode === "reference" || localMode === "quick_setup") && (
           <InvertCheckbox
@@ -1082,7 +1104,9 @@ function SequenceReferencePreview({
   const target = getSequenceControlTarget(action);
   if (!target) return null;
 
-  const isSelfReference = Boolean(currentSequenceName && target === currentSequenceName);
+  const isSelfReference = Boolean(
+    currentSequenceName && target === currentSequenceName,
+  );
   const isVisited = visitedSequences.has(target);
   const targetPlugin = plugins.find(
     (plugin) =>
@@ -1096,8 +1120,7 @@ function SequenceReferencePreview({
   if (isSelfReference || isVisited) {
     return (
       <div className="w-[360px] rounded-lg border border-dashed border-sky-300/70 bg-sky-50/50 px-3 py-2 text-xs text-sky-900 shadow-sm dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-200">
-        {action.control} 指向{" "}
-        <span className="font-mono">{target}</span>
+        {action.control} 指向 <span className="font-mono">{target}</span>
         ，已用指向标记表示，避免循环展开。
       </div>
     );
@@ -1106,8 +1129,8 @@ function SequenceReferencePreview({
   if (!targetPlugin) {
     return (
       <div className="w-[360px] rounded-lg border border-dashed border-sky-300/70 bg-sky-50/50 px-3 py-2 text-xs text-sky-900 shadow-sm dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-200">
-        {action.control} 目标{" "}
-        <span className="font-mono">{target}</span> 尚未创建。
+        {action.control} 目标 <span className="font-mono">{target}</span>{" "}
+        尚未创建。
       </div>
     );
   }
@@ -1115,37 +1138,36 @@ function SequenceReferencePreview({
   const targetRules = parseSequenceRules(targetPlugin.config.args);
 
   return (
-      <div className="w-max rounded-lg border border-sky-300/70 bg-sky-50/30 p-3 shadow-sm dark:border-sky-800/50 dark:bg-sky-950/15">
-        <div className="mb-3 flex items-center gap-2 text-xs text-sky-700 dark:text-sky-300">
-          <GitBranch className="h-3.5 w-3.5" />
-          <span>
-            {action.control} 到{" "}
-            <span className="font-mono text-foreground">{target}</span>{" "}
-            执行链
-          </span>
-        </div>
-        <div className="space-y-3">
-          {targetRules.length > 0 ? (
-            targetRules.map((rule, index) => (
-              <SequenceRuleNode
-                key={`${target}-${rule.id}`}
-                rule={rule}
-                index={index}
-                total={targetRules.length}
-                plugins={plugins}
-                sequenceTags={[]}
-                readOnly
-                onChange={() => undefined}
-                onMove={() => undefined}
-                onDelete={() => undefined}
-              />
-            ))
-          ) : (
-            <div className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
-              目标 sequence 暂无规则
-            </div>
-          )}
-        </div>
+    <div className="w-max rounded-lg border border-sky-300/70 bg-sky-50/30 p-3 shadow-sm dark:border-sky-800/50 dark:bg-sky-950/15">
+      <div className="mb-3 flex items-center gap-2 text-xs text-sky-700 dark:text-sky-300">
+        <GitBranch className="h-3.5 w-3.5" />
+        <span>
+          {action.control} 到{" "}
+          <span className="font-mono text-foreground">{target}</span> 执行链
+        </span>
+      </div>
+      <div className="space-y-3">
+        {targetRules.length > 0 ? (
+          targetRules.map((rule, index) => (
+            <SequenceRuleNode
+              key={`${target}-${rule.id}`}
+              rule={rule}
+              index={index}
+              total={targetRules.length}
+              plugins={plugins}
+              sequenceTags={[]}
+              readOnly
+              onChange={() => undefined}
+              onMove={() => undefined}
+              onDelete={() => undefined}
+            />
+          ))
+        ) : (
+          <div className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+            目标 sequence 暂无规则
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1200,7 +1222,8 @@ function ActionEditor({
     onChange({
       mode: "control",
       control,
-      value: control === "accept" || control === "return" ? control : `${control} `,
+      value:
+        control === "accept" || control === "return" ? control : `${control} `,
     });
   };
 
@@ -1229,7 +1252,11 @@ function ActionEditor({
               className="h-8 min-h-8 py-0"
               allowCreate
               onChange={(tag) =>
-                onChange({ mode: "reference", value: `$${tag}`, control: action.control })
+                onChange({
+                  mode: "reference",
+                  value: `$${tag}`,
+                  control: action.control,
+                })
               }
             />
           </div>
@@ -1243,7 +1270,11 @@ function ActionEditor({
               plugins={plugins}
               readOnly={readOnly}
               onChange={(next) =>
-                onChange({ mode: "quick_setup", value: next, control: "accept" })
+                onChange({
+                  mode: "quick_setup",
+                  value: next,
+                  control: "accept",
+                })
               }
             />
           </div>
@@ -1545,12 +1576,15 @@ function defaultActionValue(mode: ActionMode) {
 
 function inferControlKind(value: string): ControlKind | null {
   const head = value.trim().split(/\s+/)[0];
-  return builtinControls.includes(head as ControlKind) ? (head as ControlKind) : null;
+  return builtinControls.includes(head as ControlKind)
+    ? (head as ControlKind)
+    : null;
 }
 
 function getControlArg(action: SequenceAction) {
   const expectedHead = `${action.control} `;
-  if (action.value.startsWith(expectedHead)) return action.value.slice(expectedHead.length);
+  if (action.value.startsWith(expectedHead))
+    return action.value.slice(expectedHead.length);
   if (action.value === action.control) return "";
   return action.value.trim().split(/\s+/).slice(1).join(" ");
 }
@@ -1570,7 +1604,9 @@ function summarizeRule(rule: SequenceRule) {
   const matches =
     rule.matches.length === 0
       ? "always"
-      : rule.matches.map((condition) => serializeMatches([condition])).join(" && ");
+      : rule.matches
+          .map((condition) => serializeMatches([condition]))
+          .join(" && ");
   const action = serializeAction(rule.action) || "未配置动作";
   return `${matches} -> ${action}`;
 }
