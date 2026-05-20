@@ -31,7 +31,7 @@ use crate::core::metrics::{MetricLabel, MetricSample, MetricSink, MetricSource};
 pub(crate) use crate::network::listen::parse_listen_addr;
 use crate::plugin::Plugin;
 use crate::plugin::executor::{ExecStep, Executor};
-use crate::proto::{Message, Rcode};
+use crate::proto::{Edns, Message, Rcode};
 
 pub mod http;
 pub mod quic;
@@ -248,7 +248,7 @@ impl RequestHandle {
             .entry_executor
             .execute_with_next(&mut context, None)
             .await;
-        let (response, exit) = match exec_outcome {
+        let (mut response, exit) = match exec_outcome {
             Ok(step) => {
                 let exit = match step {
                     ExecStep::Next => RequestExit::Completed,
@@ -270,6 +270,8 @@ impl RequestHandle {
                 (self.build_servfail_response(&context), RequestExit::Failed)
             }
         };
+
+        Self::finalize_response(&context.request, &mut response);
 
         // Log response details only when debug logging is enabled
         if event_enabled!(Level::DEBUG) {
@@ -316,6 +318,30 @@ impl RequestHandle {
     #[inline]
     fn build_base_response(&self, context: &DnsContext, rcode: Rcode) -> Message {
         context.request().response(rcode)
+    }
+
+    /// Apply server-level RFC fixes to every outbound response.
+    ///
+    /// This runs after the plugin chain and normalizes two fields that
+    /// synthetic plugins (hosts, arbitrary, redirect, etc.) leave unset:
+    ///
+    /// - RA=true: OxiDNS acts as a recursive forwarder; all responses must
+    ///   advertise that recursion is available (RFC 1035 §4.1.1).
+    ///
+    /// - OPT echo: RFC 6891 §7 requires that a response to an EDNS query
+    ///   includes an OPT record. Forwarded responses already carry the upstream
+    ///   OPT; synthetic responses get a minimal one here, with the DO bit
+    ///   copied from the request so DNSSEC-aware clients see a consistent flag.
+    fn finalize_response(request: &Message, response: &mut Message) {
+        response.set_recursion_available(true);
+
+        if request.edns().is_some() && response.edns().is_none() {
+            let mut edns = Edns::new();
+            if let Some(req_edns) = request.edns() {
+                edns.flags_mut().dnssec_ok = req_edns.flags().dnssec_ok;
+            }
+            response.set_edns(edns);
+        }
     }
 }
 

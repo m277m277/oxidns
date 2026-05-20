@@ -163,7 +163,7 @@ mod tests {
 
         let mut ctx = make_context();
         let mut response = Message::new();
-        response.add_authority(Record::from_rdata(
+        response.add_answer(Record::from_rdata(
             Name::from_ascii("alias.example.com.").unwrap(),
             60,
             RData::CNAME(CNAME(Name::from_ascii("target.example.com.").unwrap())),
@@ -195,7 +195,7 @@ mod tests {
 
         let mut ctx = make_context();
         let mut response = Message::new();
-        response.add_authority(Record::from_rdata(
+        response.add_answer(Record::from_rdata(
             Name::from_ascii("alias.example.com.").unwrap(),
             60,
             RData::CNAME(CNAME(Name::from_ascii("target.example.com.").unwrap())),

@@ -608,10 +608,11 @@ impl Message {
     }
 
     pub fn cnames(&self) -> Vec<&Name> {
+        // RFC 1034 §3.6.2: CNAME records belong in the answer section only.
+        // Scanning authority/additional would match synthetic or glue records
+        // that are not part of the canonical CNAME chain.
         self.answers
             .iter()
-            .chain(self.authorities.iter())
-            .chain(self.additionals.iter())
             .filter_map(|record| record.cname_target())
             .collect()
     }
