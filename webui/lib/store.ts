@@ -45,6 +45,13 @@ type StoreSet = (
   partial: Partial<AppState> | ((state: AppState) => Partial<AppState>),
 ) => void;
 
+export type RestartPhase =
+  | "saving"
+  | "requesting"
+  | "waiting_down"
+  | "waiting_up"
+  | "reloading";
+
 interface AppState {
   plugins: PluginInstance[];
   health: HealthResponse | null;
@@ -63,6 +70,11 @@ interface AppState {
   isConfigSaving: boolean;
   isApplying: boolean;
   isRestarting: boolean;
+  /**
+   * Current phase of an in-flight restart, surfaced by the blocking overlay.
+   * `null` when no restart is in progress.
+   */
+  restartPhase: RestartPhase | null;
   configModel: OxiDnsConfig;
   configText: string;
   configVersion: string | null;
@@ -125,6 +137,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isConfigSaving: false,
   isApplying: false,
   isRestarting: false,
+  restartPhase: null,
   configModel: initialConfigModel,
   configText: initialConfigText,
   configVersion: null,
@@ -386,7 +399,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // old process has stopped and the new one has come back up, then reloads
   // the config from the fresh process.
   restartApp: async () => {
-    set({ isRestarting: true });
+    set({ isRestarting: true, restartPhase: "saving" });
     try {
       await get().saveConfig();
       // Capture the running process's uptime before the request: pollReconnect
@@ -399,11 +412,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         // Health probe failures here are fine; pollReconnect falls back to
         // requiring an observed down transition.
       }
+      set({ restartPhase: "requesting" });
       await requestRestart();
-      await pollReconnect(baselineUptimeMs);
+      await pollReconnect(baselineUptimeMs, (phase) =>
+        set({ restartPhase: phase }),
+      );
+      set({ restartPhase: "reloading" });
       await get().loadConfig();
     } finally {
-      set({ isRestarting: false });
+      set({ isRestarting: false, restartPhase: null });
     }
   },
 
@@ -474,7 +491,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       );
     }),
 
-  deletePlugin: (id) =>
+  deletePlugin: (id) => {
     set((state) => {
       const next = syncPluginsToConfig(state, (plugins) =>
         plugins.filter((p) => p.id !== id),
@@ -485,7 +502,16 @@ export const useAppStore = create<AppState>((set, get) => ({
           state.selectedPlugin?.id === id ? null : next.selectedPlugin,
         detailOpen: state.selectedPlugin?.id === id ? false : state.detailOpen,
       };
-    }),
+    });
+    // Persist the deletion to disk so the apply-pending pill appears in the
+    // header and `saveConfig` → `validateCurrentConfig` refreshes the
+    // dependency graph that drives the topology view.
+    void get()
+      .saveConfig()
+      .catch(() => {
+        // Surfaced via configError; the global config-sync pill turns red.
+      });
+  },
 
   addPlugin: (plugin) =>
     set((state) =>
@@ -646,11 +672,15 @@ function delay(ms: number): Promise<void> {
 // "restart never happened" instead of silently returning success.
 const FRESH_PROCESS_BUFFER_MS = 2_000;
 
-async function pollReconnect(baselineUptimeMs?: number): Promise<void> {
+async function pollReconnect(
+  baselineUptimeMs?: number,
+  onPhase?: (phase: "waiting_down" | "waiting_up") => void,
+): Promise<void> {
   const startTime = Date.now();
   let sawDown = false;
 
   // Phase 1: wait for the old process to shut down
+  onPhase?.("waiting_down");
   const downDeadline = startTime + 30_000;
   while (Date.now() < downDeadline) {
     await delay(800);
@@ -664,6 +694,7 @@ async function pollReconnect(baselineUptimeMs?: number): Promise<void> {
   }
 
   // Phase 2: wait for the new process to come up
+  onPhase?.("waiting_up");
   const upDeadline = Date.now() + 60_000;
   while (Date.now() < upDeadline) {
     await delay(1500);

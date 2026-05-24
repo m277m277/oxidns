@@ -146,18 +146,27 @@ export default function SettingsPage() {
   };
 
   const handleSaveTopLevelConfig = async (reload: boolean) => {
+    const nextRuntime: Record<string, unknown> = {
+      ...asRecord(configModel.runtime),
+    };
+    if (workerThreads.trim()) {
+      nextRuntime.worker_threads = Number(workerThreads);
+    } else {
+      delete nextRuntime.worker_threads;
+    }
+
+    const nextApi: Record<string, unknown> = { ...asRecord(configModel.api) };
+    if (apiListen.trim()) {
+      nextApi.http = buildApiHttpConfig();
+    } else {
+      delete nextApi.http;
+    }
+
     const nextConfig: OxiDnsConfig = {
       ...configModel,
-      runtime: {
-        ...asRecord(configModel.runtime),
-        ...(workerThreads.trim()
-          ? { worker_threads: Number(workerThreads) }
-          : { worker_threads: undefined }),
-      },
-      api: {
-        ...asRecord(configModel.api),
-        ...(apiListen.trim() ? { http: buildApiHttpConfig() } : {}),
-      },
+      runtime:
+        Object.keys(nextRuntime).length > 0 ? nextRuntime : undefined,
+      api: Object.keys(nextApi).length > 0 ? nextApi : undefined,
       log: {
         ...asRecord(configModel.log),
         level: logLevel,

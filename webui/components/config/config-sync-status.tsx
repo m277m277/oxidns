@@ -10,6 +10,7 @@ import {
   Undo2,
   RefreshCw,
   Power,
+  RotateCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -39,6 +40,7 @@ import { useAppStore } from "@/lib/store";
 import { useAuthStore } from "@/lib/auth-store";
 import type { ConfigSnapshot } from "@/lib/config-history";
 import { ConfigDiffDialog } from "@/components/config/config-diff-dialog";
+import { topLevelConfigChanged } from "@/lib/oxidns-config";
 
 export type SyncState =
   | "in-sync"
@@ -54,6 +56,13 @@ export interface ConfigSyncStatus {
   head: ConfigSnapshot | undefined;
   /** Snapshot of the config that is currently running on the backend. */
   lastGood: ConfigSnapshot | undefined;
+  /**
+   * True when the pending change includes top-level fields (runtime, api,
+   * log, include, …) that the backend cannot hot-reload. In that case the
+   * apply pill must offer a full restart instead of a hot-reload, because
+   * hot-reloading would silently leave those fields stale.
+   */
+  requiresRestart: boolean;
 }
 
 // Single source of truth for "is the on-disk config in sync with what's
@@ -74,6 +83,15 @@ export function useConfigSyncStatus(): ConfigSyncStatus {
   const lastGood =
     configHistory.find((s) => s.version === runningVersion) ??
     configHistory.find((s) => s.applyStatus === "applied");
+
+  // Top-level fields (runtime/api/log/include) are not hot-reloadable. If the
+  // pending diff touches any of them, the apply pill must offer a restart.
+  const requiresRestart = Boolean(
+    current &&
+      lastGood &&
+      current.content !== lastGood.content &&
+      topLevelConfigChanged(current.content, lastGood.content),
+  );
 
   let state: SyncState = "in-sync";
   let tone: ConfigSyncStatus["tone"] = "neutral";
@@ -100,10 +118,12 @@ export function useConfigSyncStatus(): ConfigSyncStatus {
   } else if (configVersion) {
     state = "not-applied";
     tone = "warning";
-    label = "有未应用的配置改动，点击应用";
+    label = requiresRestart
+      ? "顶层配置（runtime / api / log 等）已变更，需重启服务才能生效"
+      : "有未应用的配置改动，点击应用";
   }
 
-  return { state, label, tone, head: current, lastGood };
+  return { state, label, tone, head: current, lastGood, requiresRestart };
 }
 
 const PILL_TONE: Record<"warning" | "destructive", string> = {
@@ -127,7 +147,8 @@ export function ConfigSyncControl() {
   const setHistoryOpen = useAppStore((s) => s.setHistoryOpen);
   const configText = useAppStore((s) => s.configText);
   const configVersion = useAppStore((s) => s.configVersion);
-  const { state, label, tone, lastGood } = useConfigSyncStatus();
+  const { state, label, tone, lastGood, requiresRestart } =
+    useConfigSyncStatus();
 
   const [diffOpen, setDiffOpen] = useState(false);
   const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
@@ -213,16 +234,28 @@ export function ConfigSyncControl() {
             variant="outline"
             size="sm"
             className={`h-7 gap-1.5 rounded-md px-2.5 ${pillClass}`}
-            onClick={handleApply}
+            onClick={() => {
+              if (state === "not-applied" && requiresRestart) {
+                setRestartConfirmOpen(true);
+              } else {
+                void handleApply();
+              }
+            }}
             disabled={state === "error"}
           >
             {state === "not-applied" ? (
-              <Rocket className="h-3.5 w-3.5" />
+              requiresRestart ? (
+                <RotateCw className="h-3.5 w-3.5" />
+              ) : (
+                <Rocket className="h-3.5 w-3.5" />
+              )
             ) : (
               <AlertCircle className="h-3.5 w-3.5" />
             )}
             {state === "not-applied"
-              ? "应用更改"
+              ? requiresRestart
+                ? "需要重启"
+                : "应用更改"
               : state === "apply-failed"
                 ? "应用失败·重试"
                 : "配置有误"}
