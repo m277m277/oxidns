@@ -87,20 +87,22 @@ where
                     read_placeholder_body(&mut chars, &mut line, &mut col, start_line, start_col)?;
                 let (name, default) = split_placeholder_body(&body, start_line, start_col)?;
 
-                match lookup(name) {
-                    Some(value) if !value.as_os_str().is_empty() => {
+                match (lookup(name), default) {
+                    (Some(value), Some(default)) if value.as_os_str().is_empty() => {
+                        output.push_str(default);
+                    }
+                    (Some(value), _) => {
                         output.push_str(&value.to_string_lossy());
                     }
-                    _ => {
-                        if let Some(default) = default {
-                            output.push_str(default);
-                        } else {
-                            return Err(EnvExpandError::UndefinedVariable {
-                                name: name.to_string(),
-                                line: start_line,
-                                col: start_col,
-                            });
-                        }
+                    (None, Some(default)) => {
+                        output.push_str(default);
+                    }
+                    (None, None) => {
+                        return Err(EnvExpandError::UndefinedVariable {
+                            name: name.to_string(),
+                            line: start_line,
+                            col: start_col,
+                        });
                     }
                 }
             }
@@ -204,6 +206,12 @@ mod tests {
     fn uses_default_for_empty_environment_value() {
         let expanded = expand_env_with_lookup("${EMPTY:-fallback}", lookup).expect("expand");
         assert_eq!(expanded, "fallback");
+    }
+
+    #[test]
+    fn expands_empty_environment_value_without_default() {
+        let expanded = expand_env_with_lookup("before:${EMPTY}:after", lookup).expect("expand");
+        assert_eq!(expanded, "before::after");
     }
 
     #[test]
