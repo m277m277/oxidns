@@ -40,7 +40,11 @@ type Locale = 'zh' | 'en';
 type InstallTab = { label: string; prompt: string; code: string };
 type Feature = { icon: keyof typeof ICONS; title: string; desc: string; href: string };
 type NextStep = { num: number; label: string; href: string };
+type Community = { title: string; desc: string; cta: string; qrAlt: string };
 type HeroProps = { locale?: Locale };
+
+const TELEGRAM_URL = 'https://t.me/oxidns';
+const TELEGRAM_QR = '/img/telegram-qr.png';
 
 const INSTALL_TABS: InstallTab[] = [
   { label: 'Linux / macOS', prompt: '$', code: 'curl -fsSL https://oxidns.org/install.sh | sudo sh' },
@@ -99,6 +103,12 @@ const COPY = {
       { num: 4, label: '需要 Web 控制台？查看《WebUI 部署》', href: '/webui' },
       { num: 5, label: '想理解设计取舍？阅读《架构与设计》', href: '/architecture-and-design' },
     ] satisfies NextStep[],
+    community: {
+      title: '加入社区',
+      desc: '欢迎进入 Telegram 群与作者和其他用户交流配置、反馈问题或讨论新特性。',
+      cta: 'Telegram · @OXIDNS',
+      qrAlt: 'OxiDNS Telegram 群二维码',
+    } satisfies Community,
   },
   en: {
     eyebrow: 'Rust · DNS Engine · v1.x',
@@ -142,6 +152,12 @@ const COPY = {
       { num: 4, label: 'Need the console? Open WebUI Deployment', href: '/webui' },
       { num: 5, label: 'Want the design trade-offs? Read Architecture and Design', href: '/architecture-and-design' },
     ] satisfies NextStep[],
+    community: {
+      title: 'Join the community',
+      desc: 'Hop into the Telegram group to chat with the author and other users about configuration, feedback, or upcoming features.',
+      cta: 'Telegram · @OXIDNS',
+      qrAlt: 'OxiDNS Telegram group QR code',
+    } satisfies Community,
   },
 } as const;
 
@@ -281,6 +297,22 @@ export default function Hero({ locale = 'zh' }: HeroProps): JSX.Element {
             </li>
           ))}
         </ol>
+      </div>
+
+      <div className="oxi-hero__community">
+        <div className="oxi-hero__community-text">
+          <h2 className="oxi-hero__community-title">{text.community.title}</h2>
+          <p className="oxi-hero__community-desc">{text.community.desc}</p>
+          <Link className="oxi-hero__community-cta" to={TELEGRAM_URL}>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M21.198 3.105 2.43 10.42c-1.281.514-1.273 1.235-.234 1.553l4.815 1.502 11.144-7.03c.527-.32 1.008-.148.612.204l-9.03 8.155h-.002l.002.001-.332 4.964c.488 0 .703-.224.976-.49l2.347-2.282 4.864 3.593c.897.494 1.541.24 1.764-.831l3.193-15.04c.327-1.317-.503-1.914-1.351-1.614Z"/>
+            </svg>
+            {text.community.cta}
+          </Link>
+        </div>
+        <a className="oxi-hero__community-qr" href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer">
+          <img src={TELEGRAM_QR} alt={text.community.qrAlt} loading="lazy" />
+        </a>
       </div>
     </section>
   );
