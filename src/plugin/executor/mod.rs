@@ -48,6 +48,7 @@ pub mod forward_edns0opt;
 pub mod hosts;
 #[cfg(feature = "plugin-http-request")]
 pub mod http_request;
+pub mod ip_selector;
 #[cfg(feature = "plugin-ipset")]
 pub mod ipset;
 pub mod learn_domain;
