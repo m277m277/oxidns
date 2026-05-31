@@ -23,6 +23,24 @@ fork 仓库后修改 `Cargo.toml` 的 `default = [...]`,或在编译时用 `--fe
 > 实测 release 二进制体积会随 feature 组合变化。`minimal` 把 hyper /
 > rustls / quinn / h2 / h3 / sqlite 全部排除,仍是体积最小的组合。
 
+## 预设能力矩阵
+
+下表描述的是官方预设 feature 组合的能力。fork 后自行组合 feature 时,
+实际能力以 `oxidns build-info` 或 `GET /api/build` 返回值为准。
+
+| 能力 | `minimal` | `standard` | `full` |
+|---|---|---|---|
+| 核心 DNS 能力 | UDP / TCP 监听与 upstream,sequence / forward / cache / fallback / hosts / redirect / arbitrary / dual_selector / ecs_handler / ttl / drop_resp / black_hole / debug_print / reload,全部 matcher,`domain_set` / `ip_set` provider | 同 `minimal` | 同 `standard` |
+| 管理面 | 无 HTTP API / WebUI / Prometheus HTTP 端点 | 管理 API、健康检查、日志、配置、插件 API、WebUI、`/metrics`、`metrics_collector` | 同 `standard` |
+| 入站协议 | UDP、TCP | UDP、TCP、DoT、DoH(HTTP/2)、DoQ | `standard` + DoH HTTP/3 |
+| 出站 upstream | UDP、TCP | UDP、TCP、DoT、DoH(HTTP/2)、DoQ | `standard` + DoH HTTP/3 upstream |
+| 数据 provider | `domain_set`、`ip_set` | `minimal` + `geoip`、`geosite`、`v2ray_dat`、`adguard_rule` | 同 `standard` |
+| 观测与记录 | `debug_print`,仅保留进程内基础计数器 | `metrics_collector`、Prometheus `/metrics`、`query_recorder`,并启用 sequence step 记录 | 同 `standard` |
+| 自动化 / 维护插件 | `reload` | `standard` 额外提供 `cron`、`download`、`http_request`、`reverse_lookup`、`script`、`upgrade` | `standard` + `ros_address_list`、`ipset`、`nftset` |
+| 自升级 | 不内置 `upgrade` | 内置 `upgrade` CLI 子命令与 `upgrade` executor | 同 `standard` |
+| 平台集成 | 无额外系统集成 | 无额外系统集成 | MikroTik RouterOS,以及 Linux `ipset` / `nftset` |
+| 官方 release 包 | 仅 Linux x86_64 / ARM64 musl slim 包；不包含 WebUI | 仅 Linux x86_64 / ARM64 musl slim 包；包含 WebUI、query_recorder、upgrade | 默认发布包；覆盖完整 release target、`.deb` 和 Docker |
+
 ## 颗粒度开关
 
 下表里的每个 feature 都可以单独打开或关闭。组合包就是这些开关的集合,

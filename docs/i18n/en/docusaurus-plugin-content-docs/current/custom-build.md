@@ -25,6 +25,25 @@ on the command line, to produce a binary tailored to your scenario.
 > Release binary sizes vary by feature composition. `minimal` excludes hyper /
 > rustls / quinn / h2 / h3 / sqlite entirely and remains the smallest bundle.
 
+## Preset capability matrix
+
+The table below describes the official preset feature bundles. If you fork
+the project and compose features yourself, treat `oxidns build-info` or
+`GET /api/build` as the source of truth for the running binary.
+
+| Capability | `minimal` | `standard` | `full` |
+|---|---|---|---|
+| Core DNS path | UDP / TCP listeners and upstreams, sequence / forward / cache / fallback / hosts / redirect / arbitrary / dual_selector / ecs_handler / ttl / drop_resp / black_hole / debug_print / reload, all matchers, `domain_set` / `ip_set` providers | Same as `minimal` | Same as `standard` |
+| Management plane | No HTTP API / WebUI / Prometheus HTTP endpoint | Management API, health checks, logs, config, plugin APIs, WebUI, `/metrics`, `metrics_collector` | Same as `standard` |
+| Inbound protocols | UDP, TCP | UDP, TCP, DoT, DoH (HTTP/2), DoQ | `standard` + DoH over HTTP/3 |
+| Upstream protocols | UDP, TCP | UDP, TCP, DoT, DoH (HTTP/2), DoQ | `standard` + DoH over HTTP/3 upstream |
+| Data providers | `domain_set`, `ip_set` | `minimal` + `geoip`, `geosite`, `v2ray_dat`, `adguard_rule` | Same as `standard` |
+| Observability and recording | `debug_print`; in-process base counters only | `metrics_collector`, Prometheus `/metrics`, `query_recorder`, and sequence step recording | Same as `standard` |
+| Automation / maintenance plugins | `reload` | Adds `cron`, `download`, `http_request`, `reverse_lookup`, `script`, `upgrade` | `standard` + `ros_address_list`, `ipset`, `nftset` |
+| Self-upgrade | No built-in `upgrade` | Includes the `upgrade` CLI subcommand and `upgrade` executor | Same as `standard` |
+| Platform integrations | No extra system integration | No extra system integration | MikroTik RouterOS plus Linux `ipset` / `nftset` |
+| Official release archive | Linux x86_64 / ARM64 musl slim archives only; no WebUI | Linux x86_64 / ARM64 musl slim archives only; includes WebUI, query_recorder, and upgrade | Default release archives across all release targets, `.deb`, and Docker |
+
 ## Granular toggles
 
 Each feature below is independently switchable. The bundle features are
