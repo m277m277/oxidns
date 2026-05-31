@@ -37,6 +37,7 @@ use crate::plugin::{Plugin, PluginFactory};
 use crate::plugin_factory;
 
 mod http2_server;
+#[cfg(feature = "server-doh3")]
 mod http3_server;
 mod http_dispatcher;
 
@@ -198,6 +199,7 @@ impl HttpServer {
         )));
 
         if self.enable_http3.unwrap_or(false) {
+            #[cfg(feature = "server-doh3")]
             match self.server_config.clone() {
                 Some(cfg) => {
                     task_handles.push(tokio::spawn(http3_server::run_server(
@@ -219,6 +221,17 @@ impl HttpServer {
                     ));
                 }
             };
+            #[cfg(not(feature = "server-doh3"))]
+            {
+                if let Some(tx) = h3_startup_tx {
+                    let _ = tx.send(Err(
+                        "HTTP/3 not compiled in; rebuild with --features server-doh3".to_string(),
+                    ));
+                }
+                return Err(DnsError::plugin(
+                    "HTTP/3 not compiled in; rebuild with --features server-doh3",
+                ));
+            }
         } else if let Some(tx) = h3_startup_tx {
             let _ = tx.send(Ok(()));
         }

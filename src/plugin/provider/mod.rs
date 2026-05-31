@@ -31,12 +31,16 @@ use crate::plugin::{self, Plugin};
 use crate::proto::{Name, Question};
 use crate::register_plugin_api;
 
+#[cfg(feature = "provider-adguard-rule")]
 pub mod adguard_rule;
 pub mod domain_set;
+#[cfg(feature = "provider-protobuf")]
 pub mod geoip;
+#[cfg(feature = "provider-protobuf")]
 pub mod geosite;
 pub mod ip_set;
 pub(crate) mod provider_utils;
+#[cfg(feature = "provider-protobuf")]
 pub(crate) mod v2ray_dat;
 
 #[async_trait]

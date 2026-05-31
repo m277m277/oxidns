@@ -30,6 +30,7 @@ pub mod core;
 pub mod network;
 pub mod plugin;
 pub mod service;
+#[cfg(feature = "plugin-upgrade")]
 pub mod upgrade;
 
 pub use oxidns_macros::plugin_factory;

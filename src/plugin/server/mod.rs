@@ -34,6 +34,7 @@ use crate::plugin::executor::{ExecStep, Executor};
 use crate::proto::{Edns, Message, Rcode};
 
 pub mod http;
+#[cfg(feature = "server-doq")]
 pub mod quic;
 pub mod tcp;
 pub mod udp;

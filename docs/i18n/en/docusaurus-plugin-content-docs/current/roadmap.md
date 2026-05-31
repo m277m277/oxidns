@@ -23,9 +23,13 @@ flowchart LR
 
 ---
 
-## Phase 1 · Custom Builds
+## Phase 1 · Custom Builds — *Phase 1A landed*
 
 Split compilation by plugin module so users can fork the repository, select only the plugins they need, produce a lean custom build, and keep it up to date via a configurable upgrade repository.
+
+**Phase 1A (shipped):** Bundle features `minimal` / `standard` / `full`; individual gates for DoQ/DoH3 (server + upstream), MikroTik, query_recorder, ipset/nftset, cron, script, upgrade, download, http_request, reverse_lookup, geo providers, adguard_rule. See [Custom Build](/docs/custom-build).
+
+**Phase 1B (next):** `api` / `webui` / `metrics` / `server-dot` / `server-doh` / `upstream-dot` / `upstream-doh` gates — requires lifting `AppController` and `LogBuffer` out of `src/api/` into `src/core/`.
 
 ---
 

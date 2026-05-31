@@ -20,7 +20,9 @@ use bytes::BytesMut;
 use fast_socks5::client::Socks5Stream;
 use http::header::CONTENT_LENGTH;
 use http::{HeaderValue, Method, Request, Response, Version, header};
+#[cfg(any(feature = "upstream-doq", feature = "upstream-doh3"))]
 use quinn::crypto::rustls::QuicClientConfig;
+#[cfg(any(feature = "upstream-doq", feature = "upstream-doh3"))]
 use quinn::{ClientConfig, Endpoint, EndpointConfig, TokioRuntime};
 use rustls::pki_types::ServerName;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -105,6 +107,7 @@ pub(crate) async fn connect_tls(
 /// # Security Warning
 /// Setting `skip_cert` to true disables certificate validation. Only use for
 /// testing!
+#[cfg(any(feature = "upstream-doq", feature = "upstream-doh3"))]
 pub(crate) async fn connect_quic(
     udp_socket: UdpSocket,
     skip_cert: bool,

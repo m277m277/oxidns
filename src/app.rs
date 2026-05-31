@@ -17,6 +17,7 @@
 mod banner;
 pub mod bootstrap;
 pub mod cli;
+#[cfg(feature = "provider-protobuf")]
 pub mod export_dat;
 mod graph;
 mod logging;

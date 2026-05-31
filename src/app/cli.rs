@@ -4,6 +4,7 @@
 //! Application CLI definition and startup options.
 
 use std::path::PathBuf;
+#[cfg(feature = "plugin-upgrade")]
 use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand};
@@ -24,10 +25,12 @@ pub enum Command {
     /// Check whether a configuration file is valid.
     Check(CheckOptions),
     /// Export selected rules from a dat file into text files.
+    #[cfg(feature = "provider-protobuf")]
     ExportDat(ExportDatOptions),
     /// Manage the operating system service.
     Service(ServiceOptions),
     /// Check, download, or apply OxiDNS release upgrades.
+    #[cfg(feature = "plugin-upgrade")]
     Upgrade(UpgradeOptions),
 }
 
@@ -65,6 +68,7 @@ pub struct CheckOptions {
 }
 
 /// Dat export options.
+#[cfg(feature = "provider-protobuf")]
 #[derive(Args, Clone, Debug, PartialEq, Eq)]
 pub struct ExportDatOptions {
     /// Path to the source dat file
@@ -97,6 +101,7 @@ pub struct ExportDatOptions {
 }
 
 /// Supported dat kinds.
+#[cfg(feature = "provider-protobuf")]
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DatKind {
     Auto,
@@ -105,6 +110,7 @@ pub enum DatKind {
 }
 
 /// Supported export text formats.
+#[cfg(feature = "provider-protobuf")]
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExportFormat {
     Oxidns,
@@ -112,6 +118,7 @@ pub enum ExportFormat {
 }
 
 /// Upgrade command options.
+#[cfg(feature = "plugin-upgrade")]
 #[derive(Args, Clone, Debug, PartialEq, Eq)]
 pub struct UpgradeOptions {
     #[command(subcommand)]
@@ -180,6 +187,7 @@ pub struct UpgradeOptions {
 }
 
 /// Upgrade subcommands.
+#[cfg(feature = "plugin-upgrade")]
 #[derive(Subcommand, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UpgradeAction {
     Check,
@@ -187,6 +195,7 @@ pub enum UpgradeAction {
     Apply,
 }
 
+#[cfg(feature = "plugin-upgrade")]
 fn parse_cli_duration(raw: &str) -> std::result::Result<Duration, String> {
     crate::core::system_utils::parse_simple_duration(raw)
 }
@@ -321,6 +330,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "plugin-upgrade")]
     #[test]
     fn parse_upgrade_apply_with_options() {
         let args = [
@@ -370,6 +380,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "plugin-upgrade")]
     #[test]
     fn parse_upgrade_no_restart_flag() {
         let args = ["oxidns", "upgrade", "apply", "--no-restart"];
@@ -384,6 +395,7 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "plugin-upgrade")]
     #[test]
     fn parse_upgrade_defaults_to_apply_and_accepts_force() {
         let args = ["oxidns", "upgrade", "--force"];
@@ -502,6 +514,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "provider-protobuf")]
     #[test]
     fn parse_export_dat_command() {
         let args = [
@@ -539,6 +552,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "provider-protobuf")]
     #[test]
     fn parse_export_dat_command_without_selectors() {
         let args = [
