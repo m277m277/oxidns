@@ -11,6 +11,30 @@ use std::fmt;
 
 use crate::core::env;
 
+/// The stable set of per-request context keys used by executor template
+/// plugins. Config-time env expansion preserves `${key}` for any name in this
+/// list so they reach the runtime renderer intact.
+pub(crate) const BUILTIN_KEYS: &[&str] = &[
+    "qname",
+    "qtype",
+    "qtype_name",
+    "qclass",
+    "qclass_name",
+    "client_ip",
+    "client_port",
+    "server_name",
+    "url_path",
+    "marks",
+    "has_resp",
+    "rcode",
+    "rcode_name",
+    "resp_ip",
+    "cron_plugin_tag",
+    "cron_job_name",
+    "cron_trigger_kind",
+    "cron_scheduled_at_unix_ms",
+];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EnvExpandError {
     UndefinedVariable {
@@ -195,15 +219,7 @@ fn resolve_lookup_name(
 }
 
 fn is_runtime_template_key(name: &str) -> bool {
-    #[cfg(any(feature = "plugin-http-request", feature = "plugin-script"))]
-    {
-        crate::plugin::executor::template::BUILTIN_KEYS.contains(&name.trim())
-    }
-    #[cfg(not(any(feature = "plugin-http-request", feature = "plugin-script")))]
-    {
-        let _ = name;
-        false
-    }
+    BUILTIN_KEYS.contains(&name.trim())
 }
 
 fn advance_position(ch: char, line: &mut usize, col: &mut usize) {
@@ -295,10 +311,9 @@ mod tests {
         assert_eq!(expanded, "site=${qname} client=${client_ip}");
     }
 
-    #[cfg(any(feature = "plugin-http-request", feature = "plugin-script"))]
     #[test]
     fn keeps_all_runtime_template_placeholders_literal() {
-        for key in crate::plugin::executor::template::BUILTIN_KEYS {
+        for key in BUILTIN_KEYS {
             let raw = format!("value=${{{key}}}");
             let expanded = expand_env_with_lookup(&raw, lookup).expect("expand");
             assert_eq!(expanded, raw, "runtime placeholder {key} should survive");

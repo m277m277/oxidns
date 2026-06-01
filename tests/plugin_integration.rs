@@ -35,8 +35,11 @@ use oxidns::network::transport::udp_transport::UdpTransport;
 use oxidns::plugin;
 use oxidns::plugin::executor::ExecStep;
 use oxidns::plugin::{PluginRegistry, PluginType};
+#[cfg(feature = "plugin-dynamic-domain")]
 use oxidns::proto::rdata::A;
-use oxidns::proto::{DNSClass, Message, Name, Question, RData, Rcode, Record, RecordType};
+use oxidns::proto::{DNSClass, Message, Name, Question, Rcode, RecordType};
+#[cfg(feature = "plugin-dynamic-domain")]
+use oxidns::proto::{RData, Record};
 use tempfile::TempDir;
 #[cfg(any(feature = "plugin-download", feature = "plugin-http-request"))]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -226,6 +229,7 @@ async fn start_test_http_server(
     start_test_http_server_routes(routes).await
 }
 
+#[cfg(feature = "plugin-ip-selector")]
 async fn start_tcp_probe_server() -> Result<SocketAddr> {
     let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).await?;
     let addr = listener.local_addr()?;

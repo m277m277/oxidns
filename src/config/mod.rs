@@ -253,6 +253,7 @@ plugins:
         assert!(msg.contains("OXIDNS_MISSING_VALIDATE_TEXT_REQUIRED_D6D7F2AE"));
     }
 
+    #[cfg(feature = "plugin-script")]
     #[test]
     fn validate_text_preserves_runtime_template_placeholders() {
         let summary = validate_text(
