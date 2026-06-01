@@ -32,6 +32,7 @@ use crate::proto::{Name, Question};
 #[cfg(feature = "provider-adguard-rule")]
 pub mod adguard_rule;
 pub mod domain_set;
+#[cfg(feature = "plugin-dynamic-domain")]
 pub mod dynamic_domain_set;
 #[cfg(feature = "provider-protobuf")]
 pub mod geoip;

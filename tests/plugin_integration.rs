@@ -1516,6 +1516,7 @@ plugins:
     Ok(())
 }
 
+#[cfg(feature = "plugin-ip-selector")]
 #[tokio::test]
 async fn test_ip_selector_plugin_init_accepts_full_config_and_quick_setup() -> Result<()> {
     let yaml = r#"
@@ -1556,6 +1557,7 @@ plugins:
     Ok(())
 }
 
+#[cfg(feature = "plugin-ip-selector")]
 #[tokio::test]
 async fn test_ip_selector_recommended_chain_keeps_cache_response_uncut() -> Result<()> {
     let probe_addr = start_tcp_probe_server().await?;
@@ -1863,6 +1865,7 @@ plugins:
     Ok(())
 }
 
+#[cfg(feature = "plugin-dynamic-domain")]
 #[tokio::test]
 async fn test_dynamic_domain_set_learns_through_sequence_and_parent_domain_set() -> Result<()> {
     let temp_dir = TempDir::new()?;
@@ -1944,6 +1947,7 @@ plugins:
     Ok(())
 }
 
+#[cfg(feature = "plugin-dynamic-domain")]
 #[tokio::test]
 async fn test_learn_domain_rejects_non_dynamic_domain_set_provider() -> Result<()> {
     let yaml = r#"

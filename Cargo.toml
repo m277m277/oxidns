@@ -165,6 +165,8 @@ standard = [
     "provider-adguard-rule",
     "plugin-arbitrary",
     "plugin-cron",
+    "plugin-dynamic-domain",
+    "plugin-ip-selector",
     "plugin-script",
     "plugin-download",
     "plugin-http-request",
@@ -243,6 +245,13 @@ plugin-ipset = ["dep:ripset"]
 
 # `cron` executor (cron-expression scheduled triggers).
 plugin-cron = ["dep:cronexpr"]
+
+# `dynamic_domain_set` provider + `learn_domain` executor (runtime-writable
+# domain rule set with background-flush persistence and pipeline learning).
+plugin-dynamic-domain = []
+
+# `ip_selector` executor (response IP scoring and selection via active probing).
+plugin-ip-selector = []
 
 # `script` executor (run an external command per request).
 plugin-script = []

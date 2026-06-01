@@ -195,7 +195,15 @@ fn resolve_lookup_name(
 }
 
 fn is_runtime_template_key(name: &str) -> bool {
-    crate::plugin::executor::template::BUILTIN_KEYS.contains(&name.trim())
+    #[cfg(any(feature = "plugin-http-request", feature = "plugin-script"))]
+    {
+        crate::plugin::executor::template::BUILTIN_KEYS.contains(&name.trim())
+    }
+    #[cfg(not(any(feature = "plugin-http-request", feature = "plugin-script")))]
+    {
+        let _ = name;
+        false
+    }
 }
 
 fn advance_position(ch: char, line: &mut usize, col: &mut usize) {
@@ -287,6 +295,7 @@ mod tests {
         assert_eq!(expanded, "site=${qname} client=${client_ip}");
     }
 
+    #[cfg(any(feature = "plugin-http-request", feature = "plugin-script"))]
     #[test]
     fn keeps_all_runtime_template_placeholders_literal() {
         for key in crate::plugin::executor::template::BUILTIN_KEYS {
