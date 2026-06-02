@@ -14,32 +14,66 @@ fork 仓库后修改 `Cargo.toml` 的 `default = [...]`,或在编译时用 `--fe
 
 ## 三种预设组合
 
-| Bundle | 适用场景 | 大致内容 |
+| Bundle | 定位 | 体积参考 |
 |---|---|---|
-| `minimal` | 嵌入式 / 容器 / 学习 | UDP + TCP 监听,UDP + TCP upstream,sequence / forward / cache / fallback / hosts / redirect / dual_selector / ecs_handler / ttl / drop_resp / black_hole / debug_print / reload 等基础执行器,全部 matcher,`domain_set` + `ip_set` provider。**不含** hyper / rustls / quinn / zoneparser,二进制最小 |
-| `standard` | 家用路由器 / 中等规模 | minimal + 管理 API + WebUI + metrics + DoT/DoH/DoQ 上下行 + provider-protobuf(geoip/geosite/v2ray_dat) + adguard_rule + arbitrary + cron + script + download + http_request + reverse_lookup + query_recorder + upgrade 子命令 |
-| `full`(默认) | 全功能 | standard + DoH3 上下行 + MikroTik 集成 + ipset / nftset |
+| `minimal` | 小内存设备 / 容器 / 实验，仅基础 UDP/TCP 转发 | 约 8.9 MB |
+| `standard` | 家用路由器，含 WebUI + 加密协议 + 常用插件 | 介于两者之间 |
+| `full`（默认） | 全功能，覆盖发布版的全部能力 | 约 21 MB |
 
-> 实测 release 二进制体积会随 feature 组合变化。`minimal` 把 hyper /
-> rustls / quinn / h2 / h3 / sqlite / zoneparser 全部排除,仍是体积最小的组合。
+> fork 之后自行组合 feature 时，实际能力以 `oxidns build-info` 或
+> `GET /api/build` 返回值为准。下面每个小节列出的是官方预设的具体内容。
 
-## 预设能力矩阵
+### `minimal` — 最小可用
 
-下表描述的是官方预设 feature 组合的能力。fork 后自行组合 feature 时,
-实际能力以 `oxidns build-info` 或 `GET /api/build` 返回值为准。
+只编译 DNS 转发必需的部分，剔除 HTTP / 加密协议 / 全部可选插件。
+依赖排除了 hyper / rustls / quinn / h2 / h3 / sqlite / zoneparser，是体积最小的组合。
 
-| 能力 | `minimal` | `standard` | `full` |
+**包含**
+
+- 入站：UDP、TCP
+- 上游：UDP、TCP（明文）
+- Provider：`domain_set`、`ip_set`
+- Matcher：全部
+- Executor：`sequence`、`forward`、`cache`、`fallback`、`hosts`、`redirect`、
+  `dual_selector`、`ecs_handler`、`ttl`、`drop_resp`、`black_hole`、
+  `debug_print`、`reload`
+- 进程内 metric 计数器（不暴露 HTTP 端点）
+
+**不包含**
+
+- 管理 API / WebUI / Prometheus `/metrics`
+- DoT / DoH / DoQ / DoH3 协议
+- 全部可选插件与 `upgrade` 子命令
+
+### `standard` — 家用路由器
+
+`minimal` 之上引入管理面、加密协议栈和常用插件。
+
+**额外包含**
+
+- 管理面：HTTP API、WebUI、Prometheus `/metrics`、`metrics_collector`
+- 入站 / 上游：DoT、DoH (HTTP/2)、DoQ
+- Provider：`geoip`、`geosite`、`v2ray_dat`、`adguard_rule`
+- Executor：`arbitrary`、`cron`、`download`、`http_request`、
+  `reverse_lookup`、`query_recorder`、`script`
+- `upgrade` CLI 子命令与 `upgrade` executor
+
+### `full`（默认） — 全功能
+
+`standard` 之上引入 DoH3 与平台集成。
+
+**额外包含**
+
+- 入站 / 上游：DoH HTTP/3
+- Executor：`ros_address_list`（MikroTik）、`ipset`、`nftset`
+
+### 官方发布物对照
+
+| 渠道 | minimal | standard | full |
 |---|---|---|---|
-| 核心 DNS 能力 | UDP / TCP 监听与 upstream,sequence / forward / cache / fallback / hosts / redirect / dual_selector / ecs_handler / ttl / drop_resp / black_hole / debug_print / reload,全部 matcher,`domain_set` / `ip_set` provider | 同 `minimal` + `arbitrary` 静态 DNS 记录 | 同 `standard` |
-| 管理面 | 无 HTTP API / WebUI / Prometheus HTTP 端点 | 管理 API、健康检查、日志、配置、插件 API、WebUI、`/metrics`、`metrics_collector` | 同 `standard` |
-| 入站协议 | UDP、TCP | UDP、TCP、DoT、DoH(HTTP/2)、DoQ | `standard` + DoH HTTP/3 |
-| 出站 upstream | UDP、TCP | UDP、TCP、DoT、DoH(HTTP/2)、DoQ | `standard` + DoH HTTP/3 upstream |
-| 数据 provider | `domain_set`、`ip_set` | `minimal` + `geoip`、`geosite`、`v2ray_dat`、`adguard_rule` | 同 `standard` |
-| 观测与记录 | `debug_print`,仅保留进程内基础计数器 | `metrics_collector`、Prometheus `/metrics`、`query_recorder`,并启用 sequence step 记录 | 同 `standard` |
-| 自动化 / 维护插件 | `reload` | `standard` 额外提供 `cron`、`download`、`http_request`、`reverse_lookup`、`script`、`upgrade` | `standard` + `ros_address_list`、`ipset`、`nftset` |
-| 自升级 | 不内置 `upgrade` | 内置 `upgrade` CLI 子命令与 `upgrade` executor | 同 `standard` |
-| 平台集成 | 无额外系统集成 | 无额外系统集成 | MikroTik RouterOS,以及 Linux `ipset` / `nftset` |
-| 官方 release 包 | 仅 Linux x86_64 / ARM64 musl slim 包；不包含 WebUI | 仅 Linux x86_64 / ARM64 musl slim 包；包含 WebUI、query_recorder、upgrade | 默认发布包；覆盖完整 release target、`.deb` 和 Docker |
+| Linux x86_64 / ARM64 musl slim 包 | ✓（无 WebUI） | ✓（含 WebUI） | — |
+| 完整 release target | — | — | ✓ |
+| `.deb` / Docker | — | — | ✓ |
 
 ## 颗粒度开关
 
