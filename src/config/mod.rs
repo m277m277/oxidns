@@ -260,21 +260,22 @@ plugins:
     /// measure) used to fail YAML parsing because text-level substitution
     /// would inject a `*foo` plain scalar that the parser read as an alias
     /// reference. Post-parse substitution feeds the value straight into the
-    /// `Value` tree, so the whole `validate_text` chain accepts it.
+    /// `Value` tree, so the whole validate chain accepts it.
+    ///
+    /// Drives the same chain `validate_text` runs (`from_str` →
+    /// `expand_env_in_value` → `from_value` → `validate` →
+    /// `analyze_configuration`) but injects the env value through the
+    /// lookup-injection variant instead of mutating the process environment.
+    /// `std::env::set_var` is unsafe in edition 2024 and can race with other
+    /// tests' env reads — notably `tracing_subscriber`'s `RUST_LOG` lookup
+    /// on Windows, which would intermittently fail unrelated tracing-based
+    /// tests in the same test binary.
     #[test]
     fn validate_text_accepts_env_value_with_yaml_specials() {
-        // Unique name — no other test or production code reads this, which
-        // is what makes the `set_var` race tolerable in the multi-threaded
-        // test runner (edition 2024 marks `set_var` unsafe purely because
-        // simultaneous mutators / readers across threads can tear data; here
-        // only this test touches the variable).
         const VAR: &str = "OXIDNS_TEST_PW_YAML_SPECIALS_3F7A22C4";
         const PW: &str = "p@ss*w0rd!\"\\'\nlast";
 
-        // SAFETY: the variable name above is unique to this test; no other
-        // thread can race on a read or write of it.
-        unsafe { std::env::set_var(VAR, PW) };
-        let result = validate_text(&format!(
+        let yaml = format!(
             r#"
 plugins:
   - tag: pw_holder
@@ -282,16 +283,21 @@ plugins:
     args:
       msg: ${{{VAR}}}
 "#
-        ));
-        // SAFETY: same as above — exclusive ownership of this variable name.
-        unsafe { std::env::remove_var(VAR) };
-
-        let summary = result.expect("env value with YAML specials must pass validation");
-        assert_eq!(summary.plugin_count, 1);
-        assert_eq!(
-            summary.dependency_graph.init_order,
-            vec!["pw_holder".to_string()]
         );
+        let mut value: serde_yaml_ng::Value =
+            serde_yaml_ng::from_str(&yaml).expect("YAML must parse");
+        env_expand::expand_env_in_value_with_lookup(&mut value, &|name| {
+            (name == VAR).then(|| std::ffi::OsString::from(PW))
+        })
+        .expect("env value with YAML specials must expand");
+        let config: Config =
+            serde_yaml_ng::from_value(value).expect("expanded value must deserialize");
+        config.validate().expect("config must validate");
+        let dependency_graph =
+            crate::plugin::analyze_configuration(&config).expect("dependency analysis");
+
+        assert_eq!(config.plugins.len(), 1);
+        assert_eq!(dependency_graph.init_order, vec!["pw_holder".to_string()]);
     }
 
     #[test]

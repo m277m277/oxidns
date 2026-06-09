@@ -108,7 +108,10 @@ pub fn expand_env_in_value(value: &mut Value) -> Result<(), EnvExpandError> {
     expand_env_in_value_with_lookup(value, &|name| env::var_os(name))
 }
 
-fn expand_env_in_value_with_lookup<F>(value: &mut Value, lookup: &F) -> Result<(), EnvExpandError>
+pub(crate) fn expand_env_in_value_with_lookup<F>(
+    value: &mut Value,
+    lookup: &F,
+) -> Result<(), EnvExpandError>
 where
     F: Fn(&str) -> Option<OsString>,
 {
