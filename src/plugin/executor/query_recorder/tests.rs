@@ -838,7 +838,11 @@ async fn test_load_top_clients_allows_limit_above_200() {
             &[],
         ));
     }
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    let flush_backend = backend.clone();
+    tokio::task::spawn_blocking(move || flush_backend.flush_for_test())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(backend.dropped_total.load(Ordering::Relaxed), 0);
 
     let response = load_top_clients(
