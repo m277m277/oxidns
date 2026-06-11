@@ -2389,13 +2389,14 @@ Writes response IPs into MikroTik RouterOS address lists, with dynamic entries, 
 ### Behavior
 
 - The plugin itself does not modify DNS responses.
+- Startup does not wait for RouterOS address-list scans to finish. Initial connectivity checks and persistent-entry reconciliation run in the background manager; failures are logged without blocking DNS startup or dynamic observations.
 - It only passes through during the forward phase.
 - During the return phase:
   - Extracts A/AAAA records from `NOERROR` responses.
   - Deduplicates them and keeps the largest TTL.
   - Submits them to the background manager according to async or sync mode.
 - The manager is responsible for:
-  - Initial connectivity verification
+  - Background initial connectivity verification
   - Dynamic entry refresh
   - Persistent entry consistency maintenance
   - Cleanup on shutdown

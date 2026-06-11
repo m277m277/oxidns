@@ -278,6 +278,11 @@ impl AddressListManagerRuntime {
             run_manager_worker(worker_tag, manager, rx).await;
         }));
 
+        // Startup reconciliation is deliberately queued onto the manager worker
+        // instead of awaited during plugin init. Slow RouterOS list scans must
+        // not prevent the DNS service from coming up.
+        let _ = tx.try_send(ManagerCommand::Reconcile);
+
         // Pruning is local-memory only. It never talks to RouterOS and exists
         // solely to keep the write-suppression cache bounded.
         let prune_tx = tx.clone();
@@ -395,16 +400,12 @@ impl AddressListManager {
             return Ok(());
         }
 
-        // Startup intentionally validates connectivity and repairs persistent
-        // state before the first observed DNS answer is processed.
+        // Cold remote-state operations validate connectivity once. Dynamic
+        // observations do not need a full address-list scan before they can
+        // submit exact-key upserts.
         self.api.healthcheck().await?;
-        self.reconcile_persistent_inner().await?;
         self.initialized = true;
         Ok(())
-    }
-
-    pub(super) async fn initialize_on_startup(&mut self) -> Result<()> {
-        self.ensure_initialized().await
     }
 
     #[inline]
@@ -687,7 +688,6 @@ impl AddressListManager {
         domain: String,
         addrs: Vec<ObservedAddr>,
     ) -> Result<()> {
-        self.ensure_initialized().await?;
         self.observe_domain_inner(domain, addrs, now_millis()).await
     }
 
@@ -710,7 +710,6 @@ impl AddressListManager {
     }
 
     pub(super) async fn prune_dynamic_cache_now(&mut self) -> Result<()> {
-        self.ensure_initialized().await?;
         self.prune_dynamic_cache(now_millis());
         Ok(())
     }
@@ -759,13 +758,11 @@ impl AddressListManager {
         addrs: Vec<ObservedAddr>,
         now_ms: u64,
     ) -> Result<()> {
-        self.ensure_initialized().await?;
         self.observe_domain_inner(domain, addrs, now_ms).await
     }
 
     #[cfg(test)]
     pub(super) async fn prune_dynamic_cache_at_for_test(&mut self, now_ms: u64) -> Result<()> {
-        self.ensure_initialized().await?;
         self.prune_dynamic_cache(now_ms);
         Ok(())
     }

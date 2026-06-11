@@ -299,10 +299,6 @@ impl Plugin for MikrotikExecutor {
             return Ok(());
         }
 
-        if let Some(manager) = self.manager.as_mut() {
-            manager.initialize_on_startup().await?;
-        }
-
         let Some(manager) = self.manager.take() else {
             return Ok(());
         };
@@ -784,6 +780,7 @@ mod tests {
     use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
     use super::*;
+    use crate::core::app_clock::AppClock;
     use crate::plugin::executor::ros_address_list::api::RouterListEntry;
     use crate::plugin::executor::ros_address_list::manager::{
         OwnedCommentKind, decode_owned_comment, encode_comment,
@@ -952,6 +949,7 @@ mod tests {
     }
 
     fn default_cfg(tag: &str) -> AddressListManagerConfig {
+        AppClock::start();
         AddressListManagerConfig {
             plugin_tag: tag.to_string(),
             address_list4: Some("oxidns_ipv4".to_string()),
@@ -1007,6 +1005,7 @@ mod tests {
         address_list6: Option<&str>,
         api: Arc<dyn MikrotikApi>,
     ) -> MikrotikExecutor {
+        AppClock::start();
         let config = MikrotikConfig {
             address: "127.0.0.1:8728".to_string(),
             username: "u".to_string(),
@@ -1604,6 +1603,38 @@ persistent:
         })
         .await;
         assert!(api.entry_count() > 0);
+        let _ = executor.destroy().await;
+    }
+
+    #[tokio::test]
+    async fn startup_reconcile_failure_does_not_block_dns_execution() {
+        let api = Arc::new(MockMikrotikApi::default());
+        {
+            let mut state = api.state.lock().unwrap();
+            state.fail_healthcheck = true;
+        }
+        let mut executor = build_executor_for_test(
+            "mk_startup",
+            true,
+            false,
+            Some("oxidns_ipv4"),
+            None,
+            api.clone() as Arc<dyn MikrotikApi>,
+        );
+        executor.init_for_test().await.unwrap();
+
+        let mut ctx = make_context();
+        ctx.set_response(response_with_records(vec![a_record(
+            Ipv4Addr::new(13, 13, 13, 13),
+            300,
+        )]));
+        executor.execute_with_next(&mut ctx, None).await.unwrap();
+        assert!(ctx.response().is_some());
+
+        yield_until("dynamic write after startup reconcile failure", || {
+            api.entry_count() > 0
+        })
+        .await;
         let _ = executor.destroy().await;
     }
 

@@ -187,6 +187,7 @@ async: true
 
 * DNS 响应不应该因为 RouterOS API 延迟而被明显拖慢。
 * `ros_address_list` 的主要职责是联动，而非阻塞主解析路径。
+* 启动阶段的 RouterOS address-list 扫描在后台执行；即使 RouterOS 列表很大或管理面响应慢，也不应阻塞 DNS 服务启动。
 
 ### `min_ttl` / `max_ttl`
 

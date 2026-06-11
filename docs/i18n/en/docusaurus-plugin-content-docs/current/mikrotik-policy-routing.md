@@ -187,6 +187,7 @@ Why:
 
 * DNS responses should not be noticeably delayed by RouterOS API latency.
 * `ros_address_list` is primarily a side-effect and integration plugin, not the main resolution action.
+* Startup-time RouterOS address-list scans run in the background, so large lists or a slow management plane should not block DNS service startup.
 
 ### `min_ttl` / `max_ttl`
 
