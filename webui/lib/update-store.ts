@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { fetchUpgradeCheck, triggerUpgradeApply } from "./oxidns-api";
+import { WEBUI, tClient } from "./i18n";
 
 const STORAGE_KEY = "oxidns:upgrade-config";
 
@@ -152,7 +153,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
       });
     } catch (error) {
       set({
-        checkError: error instanceof Error ? error.message : "检查更新失败",
+        checkError:
+          error instanceof Error
+            ? error.message
+            : tClient(WEBUI.storeErrors.updateCheckFailed),
         isChecking: false,
         lastCheckedAt: Date.now(),
       });
@@ -170,11 +174,15 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         githubToken: upgradeConfig.githubToken.trim() || undefined,
         allowPrerelease: upgradeConfig.allowPrerelease,
       });
-      // 服务端升级在后台运行，202 到达后服务即将重启。
-      // 保持 isApplying=true 直到连接断开，由 resetApplyState 在断连时重置。
+      // The server-side upgrade runs in the background; after the 202 response,
+      // the service is about to restart. Keep isApplying=true until the
+      // connection drops and resetApplyState clears it.
     } catch (error) {
       set({
-        applyError: error instanceof Error ? error.message : "启动升级失败",
+        applyError:
+          error instanceof Error
+            ? error.message
+            : tClient(WEBUI.storeErrors.upgradeStartFailed),
         isApplying: false,
       });
     }
