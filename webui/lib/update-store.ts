@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { fetchUpgradeCheck, triggerUpgradeApply } from "./oxidns-api";
+import { WEBUI, tClient } from "./i18n";
 
 const STORAGE_KEY = "oxidns:upgrade-config";
 
@@ -50,7 +51,10 @@ function loadUpgradeConfig(): UpgradeConfig {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return { ...DEFAULT_UPGRADE_CONFIG, ...(JSON.parse(stored) as Partial<UpgradeConfig>) };
+      return {
+        ...DEFAULT_UPGRADE_CONFIG,
+        ...(JSON.parse(stored) as Partial<UpgradeConfig>),
+      };
     }
   } catch {
     // ignore
@@ -68,7 +72,9 @@ function saveUpgradeConfig(config: UpgradeConfig): void {
 
 export const useUpdateStore = create<UpdateState>((set, get) => ({
   upgradeConfig:
-    typeof window !== "undefined" ? loadUpgradeConfig() : { ...DEFAULT_UPGRADE_CONFIG },
+    typeof window !== "undefined"
+      ? loadUpgradeConfig()
+      : { ...DEFAULT_UPGRADE_CONFIG },
   updateInfo: null,
   isChecking: false,
   isApplying: false,
@@ -105,7 +111,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
       });
     } catch (error) {
       set({
-        checkError: error instanceof Error ? error.message : "检查更新失败",
+        checkError:
+          error instanceof Error
+            ? error.message
+            : tClient(WEBUI.storeErrors.updateCheckFailed),
         isChecking: false,
         lastCheckedAt: Date.now(),
       });
@@ -122,11 +131,15 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         socks5: upgradeConfig.socks5 || undefined,
         allowPrerelease: upgradeConfig.allowPrerelease,
       });
-      // 服务端升级在后台运行，202 到达后服务即将重启。
-      // 保持 isApplying=true 直到连接断开，由 resetApplyState 在断连时重置。
+      // The server-side upgrade runs in the background; after the 202 response,
+      // the service is about to restart. Keep isApplying=true until the
+      // connection drops and resetApplyState clears it.
     } catch (error) {
       set({
-        applyError: error instanceof Error ? error.message : "启动升级失败",
+        applyError:
+          error instanceof Error
+            ? error.message
+            : tClient(WEBUI.storeErrors.upgradeStartFailed),
         isApplying: false,
       });
     }
