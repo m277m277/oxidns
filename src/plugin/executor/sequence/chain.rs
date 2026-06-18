@@ -13,10 +13,10 @@ use crate::infra::error::{DnsError, Result};
 use crate::plugin::executor::sequence::{
     PluginRef, Rule, parse_control_flow_sequence_tag, parse_matcher_expr,
 };
-use crate::plugin::executor::{ExecStep, Executor};
+use crate::plugin::executor::{ExecStep, Executor, synthetic_response};
 use crate::plugin::matcher::{Matcher, MatcherRef};
 use crate::plugin::{PluginHolder, PluginInitContext};
-use crate::proto::{Message, Name, Question, RData, Rcode, Record, SOA};
+use crate::proto::{Message, RData, Rcode};
 
 #[cfg(feature = "_sequence-step-recording")]
 macro_rules! record_sequence_event {
@@ -55,15 +55,8 @@ enum BuiltinOp {
 const SEQUENCE_REJECT_SOA_TTL: u32 = 300;
 
 lazy_static::lazy_static! {
-    static ref SEQUENCE_REJECT_SOA_RDATA: Arc<RData> = Arc::new(RData::SOA(SOA::new(
-        Name::from_ascii("fake-ns.oxidns.fake.root.").expect("fake SOA mname should parse"),
-        Name::from_ascii("fake-mbox.oxidns.fake.root.").expect("fake SOA rname should parse"),
-        2021110400,
-        1800,
-        900,
-        604800,
-        SEQUENCE_REJECT_SOA_TTL,
-    )));
+    static ref SEQUENCE_REJECT_SOA_RDATA: Arc<RData> =
+        synthetic_response::fake_soa_rdata(SEQUENCE_REJECT_SOA_TTL);
 }
 
 #[derive(Debug)]
@@ -426,18 +419,15 @@ impl ChainProgram {
 fn build_reject_soa_response(request: &Message) -> Message {
     let mut response = request.response(Rcode::NoError);
     if let Some(question) = request.first_question() {
-        add_reject_soa(&mut response, question);
+        synthetic_response::add_fake_soa_authority(
+            &mut response,
+            question,
+            SEQUENCE_REJECT_SOA_TTL,
+            question.qclass(),
+            SEQUENCE_REJECT_SOA_RDATA.clone(),
+        );
     }
     response
-}
-
-fn add_reject_soa(response: &mut Message, question: &Question) {
-    response.add_authority(Record::from_arc_rdata_with_class(
-        question.name().clone(),
-        SEQUENCE_REJECT_SOA_TTL,
-        question.qclass(),
-        SEQUENCE_REJECT_SOA_RDATA.clone(),
-    ));
 }
 
 #[cfg(feature = "_sequence-step-recording")]
