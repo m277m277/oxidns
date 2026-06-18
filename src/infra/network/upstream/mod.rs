@@ -7,7 +7,6 @@
 //! It turns upstream configuration into protocol-specific clients with shared
 //! pooling, bootstrap resolution, timeout handling, and fallback behavior.
 
-pub(crate) mod bootstrap;
 mod builder;
 mod config;
 mod conn;

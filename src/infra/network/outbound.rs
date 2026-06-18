@@ -17,9 +17,9 @@ use crate::config::types::{
     NetworkOutboundConfig, OutboundProfileConfig, OutboundProxyConfig, OutboundResolverConfig,
 };
 use crate::infra::error::{DnsError, Result};
+use crate::infra::network::deadline::QueryDeadline;
 use crate::infra::network::proxy::{Socks5Opt, parse_socks5_opt};
-use crate::infra::network::upstream::QueryDeadline;
-use crate::infra::network::upstream::bootstrap::Bootstrap;
+use crate::infra::network::resolver::BootstrapResolver;
 
 const DEFAULT_BOOTSTRAP_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -70,7 +70,11 @@ impl ResolverPolicy {
     async fn resolve_host(&self, host: &str, port: u16) -> Result<IpAddr> {
         match self {
             Self::System => resolve_system(host, port).await,
-            Self::Bootstrap(resolver) => resolver.resolve(host).await,
+            Self::Bootstrap(resolver) => {
+                resolver
+                    .resolve(host, QueryDeadline::new(DEFAULT_BOOTSTRAP_TIMEOUT))
+                    .await
+            }
         }
     }
 }
@@ -84,62 +88,6 @@ enum ProxyPolicy {
 impl ProxyPolicy {
     fn from_socks5(socks5: Option<Socks5Opt>) -> Self {
         socks5.map_or(Self::Direct, Self::Socks5)
-    }
-}
-
-#[derive(Debug)]
-struct BootstrapResolver {
-    servers: Vec<String>,
-    ip_version: Option<u8>,
-    cache: Mutex<HashMap<String, Arc<Bootstrap>>>,
-}
-
-impl BootstrapResolver {
-    fn new(servers: Vec<String>, ip_version: Option<u8>) -> Result<Self> {
-        if servers.is_empty() {
-            return Err(DnsError::config(
-                "bootstrap resolver requires at least one server",
-            ));
-        }
-        Ok(Self {
-            servers,
-            ip_version,
-            cache: Mutex::new(HashMap::new()),
-        })
-    }
-
-    async fn resolve(&self, host: &str) -> Result<IpAddr> {
-        let domain = bootstrap_domain(host);
-        let mut last_error = None;
-
-        for server in &self.servers {
-            let bootstrap = self.bootstrap_for(server, &domain)?;
-            match bootstrap
-                .get_with_deadline(QueryDeadline::new(DEFAULT_BOOTSTRAP_TIMEOUT))
-                .await
-            {
-                Ok(ip) => return Ok(ip),
-                Err(err) => last_error = Some(err),
-            }
-        }
-
-        Err(last_error.unwrap_or_else(|| {
-            DnsError::protocol(format!("bootstrap DNS resolution failed for '{}'", host))
-        }))
-    }
-
-    fn bootstrap_for(&self, server: &str, domain: &str) -> Result<Arc<Bootstrap>> {
-        let key = format!("{}|{}|{:?}", server, domain, self.ip_version);
-        let mut cache = self
-            .cache
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if let Some(bootstrap) = cache.get(&key) {
-            return Ok(bootstrap.clone());
-        }
-        let bootstrap = Arc::new(Bootstrap::new(server, domain, self.ip_version)?);
-        cache.insert(key, bootstrap.clone());
-        Ok(bootstrap)
     }
 }
 
@@ -260,14 +208,6 @@ async fn resolve_system(host: &str, port: u16) -> Result<IpAddr> {
     addrs.next().map(|addr| addr.ip()).ok_or_else(|| {
         DnsError::protocol(format!("Async DNS returned no addresses for '{}'", host))
     })
-}
-
-fn bootstrap_domain(host: &str) -> String {
-    if host.ends_with('.') {
-        host.to_string()
-    } else {
-        format!("{host}.")
-    }
 }
 
 fn global_slot() -> &'static Mutex<Arc<OutboundRuntime>> {

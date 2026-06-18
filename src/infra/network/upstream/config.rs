@@ -12,7 +12,7 @@ use url::Url;
 
 use crate::infra::error::{DnsError, Result};
 use crate::infra::network::proxy::{Socks5Opt, parse_socks5_opt};
-use crate::infra::network::upstream::bootstrap::Bootstrap;
+use crate::infra::network::resolver::BootstrapResolver;
 use crate::infra::system::deserialize_duration_option;
 
 /// Supported upstream connection types
@@ -253,7 +253,7 @@ pub struct ConnectionInfo {
     pub socks5: Option<Socks5Opt>,
 
     /// Bootstrap resolver for dynamic hostname resolution with TTL caching
-    pub(crate) bootstrap: Option<Arc<Bootstrap>>,
+    pub(crate) bootstrap: Option<Arc<BootstrapResolver>>,
 
     /// DoH request path (e.g., `/dns-query`), empty for non-HTTP protocols
     pub path: String,
@@ -433,9 +433,8 @@ impl TryFrom<UpstreamConfig> for ConnectionInfo {
         let bootstrap = if let Some(bootstrap_server) = bootstrap
             && remote_ip.is_none()
         {
-            Some(Arc::new(Bootstrap::new(
-                &bootstrap_server,
-                &host,
+            Some(Arc::new(BootstrapResolver::new(
+                vec![bootstrap_server],
                 bootstrap_version,
             )?))
         } else {

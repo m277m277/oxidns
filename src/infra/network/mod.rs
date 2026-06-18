@@ -31,6 +31,7 @@
 //! - [`upstream`]: outbound DNS resolver construction, bootstrap resolution,
 //!   and connection pooling across supported upstream protocols.
 pub mod buffer_pool;
+pub(crate) mod deadline;
 pub(crate) mod dial;
 #[cfg(feature = "_http-client")]
 pub mod http_client;
@@ -39,6 +40,7 @@ pub mod listen;
 #[cfg(feature = "_http-client")]
 pub(crate) mod outbound;
 pub mod proxy;
+pub(crate) mod resolver;
 #[cfg(any(feature = "_tls-client", feature = "_tls-server"))]
 pub mod tls_config;
 pub mod transport;

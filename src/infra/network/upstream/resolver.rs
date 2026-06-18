@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
 use crate::infra::error::{DnsError, Result};
-use crate::infra::network::upstream::bootstrap::Bootstrap;
+use crate::infra::network::resolver::BootstrapResolver;
 use crate::infra::network::upstream::builder::{
     main_pool_min_conns, pipeline_request_map_capacity, reuse_request_map_capacity,
 };
@@ -367,7 +367,7 @@ pub(crate) struct BootstrapUpstream<C: Connection> {
     /// Connection metadata (includes bootstrap config)
     connection_info: ConnectionInfo,
     /// Bootstrap resolver for domain name resolution
-    bootstrap: Arc<Bootstrap>,
+    bootstrap: Arc<BootstrapResolver>,
     /// Lock-free connection pool with current resolved IP
     /// Tuple: (current_ip, connection_pool)
     pool: ArcSwap<(Option<IpAddr>, Arc<dyn ConnectionPool<C>>)>,
@@ -419,8 +419,8 @@ impl<C: Connection> BootstrapUpstream<C> {
         let guard = &(*self.pool.load());
         let pool_ip = guard.0;
 
-        // Resolve domain name via bootstrap (cached in Bootstrap with TTL)
-        let ip = match self.bootstrap.get_with_deadline(deadline).await {
+        // Resolve domain name via bootstrap (cached with TTL)
+        let ip = match self.bootstrap.resolve(&self.server_name, deadline).await {
             Ok(value) => value,
             Err(value) => return Err(value),
         };
