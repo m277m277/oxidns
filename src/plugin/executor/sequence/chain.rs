@@ -660,6 +660,11 @@ fn parse_reject_builtin(arg: Option<&str>) -> Result<BuiltinOp> {
             "invalid code argument: reject expects a decimal numeric rcode or mnemonic rcode name",
         )
     })?;
+    if rcode.has_extended_bits() {
+        return Err(DnsError::plugin(
+            "invalid code argument: reject only supports base DNS rcodes 0..15",
+        ));
+    }
 
     Ok(BuiltinOp::Reject { rcode })
 }
@@ -1104,6 +1109,23 @@ mod tests {
             .parse_builtin("reject BAD_RCODE", 0)
             .await
             .expect_err("unknown text rcode should be rejected");
+    }
+
+    #[tokio::test]
+    async fn test_parse_builtin_reject_rejects_extended_rcode() {
+        let registry = crate::plugin::test_utils::test_registry();
+        let create_context = PluginCreateContext::default();
+        let init_context = PluginInitContext::new(registry, "seq", &create_context);
+        let mut builder = ChainBuilder::new(&init_context, "seq".to_string());
+
+        builder
+            .parse_builtin("reject 16", 0)
+            .await
+            .expect_err("extended rcode should require EDNS and be rejected");
+        builder
+            .parse_builtin("reject BADVERS", 0)
+            .await
+            .expect_err("extended text rcode should require EDNS and be rejected");
     }
 
     #[tokio::test]

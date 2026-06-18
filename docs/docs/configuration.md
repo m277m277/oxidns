@@ -436,6 +436,7 @@ api:
   - `reject SERVFAIL` / `reject servfail` => `SERVFAIL`
   - `reject 3` => `NXDOMAIN`
   - `reject NXDOMAIN` => `NXDOMAIN`
+- `reject` 只支持基础 DNS RCODE `0..15`；扩展 RCODE 需要 EDNS OPT，不会由该内建动作自动生成。
 - `reject 0` 只返回普通 `NOERROR` 响应，不会自动附加 SOA。
 - 调用方不会继续执行后续规则。
 - 典型用法是直接返回指定错误码，例如：
