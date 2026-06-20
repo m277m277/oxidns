@@ -342,7 +342,7 @@ mod tests {
     use crate::plugin::Plugin;
     use crate::plugin::executor::{ExecStep, Executor};
     use crate::plugin::server::RequestHandle;
-    use crate::plugin::server::http::http_dispatcher::DnsPostHandler;
+    use crate::plugin::server::http::entry::HttpDnsEntry;
     use crate::proto::{Message, Name, Question, Rcode, RecordType};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -410,9 +410,8 @@ mod tests {
         let request_handle = make_request_handle(observed);
         let mut dispatcher = HttpDispatcher::new();
         dispatcher.register_route(
-            http::Method::POST,
             Arc::from("/dns-query"),
-            Box::new(DnsPostHandler::new(request_handle)),
+            HttpDnsEntry::new(request_handle, false),
         );
         Arc::new(dispatcher)
     }

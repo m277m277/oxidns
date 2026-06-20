@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use http::{HeaderValue, Method};
+use http::HeaderValue;
 use rustls::ServerConfig;
 use serde::Deserialize;
 use tokio::sync::{oneshot, watch};
@@ -32,11 +32,13 @@ use crate::infra::network::tls_config::load_tls_config;
 use crate::infra::observability::metrics::{register_metric_source, unregister_metric_source};
 use crate::infra::system::deserialize_duration_option;
 use crate::plugin::dependency::DependencySpec;
-use crate::plugin::server::http::http_dispatcher::{DnsGetHandler, DnsPostHandler, HttpDispatcher};
+use crate::plugin::server::http::entry::HttpDnsEntry;
+use crate::plugin::server::http::http_dispatcher::HttpDispatcher;
 use crate::plugin::server::{RequestHandle, Server, ServerMetrics};
 use crate::plugin::{Plugin, PluginFactory};
 use crate::plugin_factory;
 
+mod entry;
 #[cfg(feature = "server-doh3")]
 mod http3_server;
 mod http_dispatcher;
@@ -113,6 +115,11 @@ pub struct Entry {
     ///
     /// - Must reference an existing executor plugin in `PluginRegistry`.
     pub exec: String,
+    /// Enable JSON DNS API for this route.
+    ///
+    /// - Default: false.
+    /// - RFC 8484 GET/POST behavior remains enabled either way.
+    pub json_api: Option<bool>,
 }
 
 /// HTTP DNS server plugin
@@ -408,6 +415,7 @@ impl PluginFactory for HttpServerFactory {
         // Register routes for each configured entry
         // Each entry maps a path to an executor that processes DNS queries
         for (idx, entry) in http_config.entries.iter().enumerate() {
+            let json_api = entry.json_api.unwrap_or(false);
             let field = format!("args.entries[{}].exec", idx);
             // Resolve and type-check executor with field context.
             let executor = init_context.executor(&field, &entry.exec)?;
@@ -418,26 +426,14 @@ impl PluginFactory for HttpServerFactory {
                 metrics: Some(metrics.clone()),
             });
 
-            // Register GET route (DoH RFC 8484: DNS query in URL parameter)
+            // Register the HTTP DNS entry for this path.
             info!(
-                "Registering HTTP route: GET {} -> {}",
-                entry.path, entry.exec
+                "Registering HTTP DNS route: {} -> {} (json_api={})",
+                entry.path, entry.exec, json_api
             );
             dispatcher.register_route(
-                Method::GET,
                 Arc::from(entry.path.clone()),
-                Box::new(DnsGetHandler::new(request_handle.clone())),
-            );
-
-            // Register POST route (DoH RFC 8484: DNS query in request body)
-            info!(
-                "Registering HTTP route: POST {} -> {}",
-                entry.path, entry.exec
-            );
-            dispatcher.register_route(
-                Method::POST,
-                Arc::from(entry.path.clone()),
-                Box::new(DnsPostHandler::new(request_handle.clone())),
+                HttpDnsEntry::new(request_handle.clone(), json_api),
             );
         }
 

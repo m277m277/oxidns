@@ -255,6 +255,8 @@ Provides DNS over HTTPS and can serve HTTP/1.1, HTTP/2, and optional HTTP/3.
       # Standard RFC 8484 endpoint
       - path: "/dns-query"
         exec: "seq_main"
+        # Enable the JSON DNS API for this entry
+        json_api: true
       # Alternate path for a different policy chain
       - path: "/dns-alt"
         exec: "seq_alt"
@@ -280,6 +282,11 @@ Provides DNS over HTTPS and can serve HTTP/1.1, HTTP/2, and optional HTTP/3.
     - Required: yes
     - Purpose: Executor for requests hitting that path.
     - Constraint: must reference an existing executor plugin.
+  - `json_api`
+    - Type: `boolean`
+    - Required: no
+    - Default: `false`
+    - Purpose: Enables or disables the JSON DNS API for this path.
 - Runtime impact:
   - Different paths can enter different policy chains.
 
@@ -345,6 +352,9 @@ Provides DNS over HTTPS and can serve HTTP/1.1, HTTP/2, and optional HTTP/3.
 
 - Each `path` can route to a different `exec`, which is useful for multi-entry policies.
 - Registers both GET and POST DoH access methods commonly used for RFC 8484.
+- With `json_api` enabled, GET requests can use JSON API parameters: `name` (required), `type` (optional, defaults to `1`, numeric or text RR type), `cd`, `do`, `edns_client_subnet`, and `random_padding` (accepted and ignored).
+- If a GET request includes both `dns=` and `name/type`, RFC 8484 `dns=` takes precedence.
+- `ct=application/dns-message` returns DNS wire format; otherwise the JSON API returns `application/dns-json`.
 - HTTP/1.1 and HTTP/2 are negotiated automatically on the same listener with no extra configuration.
 - When HTTP/3 is enabled, an extra QUIC listener is started.
 - When HTTP/3 is enabled, HTTP/1.1 / HTTP/2 responses advertise the same listen port through the `Alt-Svc` header.

@@ -256,6 +256,8 @@ import Admonition from "@theme/Admonition";
       # 标准 RFC 8484 路径
       - path: "/dns-query"
         exec: "seq_main"
+        # 是否在该 entry 上开启 JSON DNS API
+        json_api: true
       # 为另一条策略链保留的备用路径
       - path: "/dns-alt"
         exec: "seq_alt"
@@ -281,6 +283,11 @@ import Admonition from "@theme/Admonition";
     - 必填：是
     - 作用：指定处理该路径请求的执行器。
     - 约束：必须引用已定义的执行器插件。
+  - `json_api`
+    - 类型：`boolean`
+    - 必填：否
+    - 默认值：`false`
+    - 作用：控制该路径是否接受 JSON DNS API。
 - 运行影响：
   - 不同路径可进入不同策略链。
 
@@ -346,6 +353,9 @@ import Admonition from "@theme/Admonition";
 
 - 每个 `path` 可以路由到不同 `exec`，适合做多入口策略。
 - 自动注册 GET 与 POST 两种 RFC 8484 常见 DoH 访问方式。
+- 开启 `json_api` 后，GET 请求可使用 JSON API 参数：`name`（必填）、`type`（可选，默认 `1`，支持数字或文本类型）、`cd`、`do`、`edns_client_subnet`、`random_padding`（接受但忽略）。
+- 当 GET 同时包含 `dns=` 与 `name/type` 参数时，优先按 RFC 8484 `dns=` 处理。
+- `ct=application/dns-message` 会返回 DNS wire-format；否则 JSON API 返回 `application/dns-json`。
 - HTTP/1.1 与 HTTP/2 使用同一个监听地址自动协商，不需要额外配置。
 - 开启 HTTP/3 时，会额外启动基于 QUIC 的监听任务。
 - 开启 HTTP/3 时，HTTP/1.1 / HTTP/2 响应会携带 `Alt-Svc` 头宣告同监听端口的 HTTP/3 服务。
