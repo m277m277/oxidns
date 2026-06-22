@@ -413,11 +413,18 @@ export default function SettingsPage() {
     id: string,
     patch: Partial<OutboundProfileForm>,
   ) => {
-    setOutboundProfiles((profiles) =>
-      profiles.map((profile) =>
+    setOutboundProfiles((profiles) => {
+      const current = profiles.find((profile) => profile.id === id);
+      const nextName = patch.name;
+      if (current && nextName !== undefined) {
+        setOutboundDefault((defaultName) =>
+          defaultName === current.name ? nextName : defaultName,
+        );
+      }
+      return profiles.map((profile) =>
         profile.id === id ? { ...profile, ...patch } : profile,
-      ),
-    );
+      );
+    });
   };
 
   const removeOutboundProfile = (id: string) => {

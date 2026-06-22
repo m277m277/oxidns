@@ -200,11 +200,16 @@ pub struct NetworkOutboundConfig {
 impl NetworkOutboundConfig {
     fn validate(&self) -> Result<(), ConfigError> {
         if let Some(default) = self.default.as_deref() {
-            let default = default.trim();
-            if default.is_empty() {
+            if default.trim().is_empty() {
                 return Err(ConfigError::InvalidNetworkOutbound(
                     "default profile name cannot be empty".to_string(),
                 ));
+            }
+            if default != default.trim() {
+                return Err(ConfigError::InvalidNetworkOutbound(format!(
+                    "default profile '{}' cannot contain leading or trailing whitespace",
+                    default
+                )));
             }
             if !self.profiles.contains_key(default) {
                 return Err(ConfigError::InvalidNetworkOutbound(format!(
@@ -379,7 +384,11 @@ fn parse_nameserver_addr(addr: &str) -> Option<ParsedNameserverAddr> {
         normalized.as_str()
     };
     let url = url::Url::parse(candidate).ok()?;
-    let host = url.host_str()?.to_string();
+    let host = match url.host()? {
+        url::Host::Domain(domain) => domain.to_string(),
+        url::Host::Ipv4(ip) => ip.to_string(),
+        url::Host::Ipv6(ip) => ip.to_string(),
+    };
     let scheme = url.scheme().to_ascii_lowercase();
     if !matches!(
         scheme.as_str(),
@@ -837,6 +846,74 @@ plugins:
         .expect("config should deserialize");
 
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_rejects_padded_default_outbound_profile() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    default: " oversea "
+    profiles:
+      oversea:
+        resolver: system
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("padded outbound default profile should fail");
+        assert!(matches!(err, ConfigError::InvalidNetworkOutbound(_)));
+    }
+
+    #[test]
+    fn test_validate_accepts_bracketed_ipv6_outbound_nameserver() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          nameservers:
+            - addr: udp://[2001:4860:4860::8888]:53
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_rejects_unbracketed_ipv6_outbound_nameserver() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          nameservers:
+            - addr: udp://2001:4860:4860::8888:53
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("unbracketed IPv6 nameserver should fail");
+        assert!(matches!(err, ConfigError::InvalidNetworkOutbound(_)));
     }
 
     #[test]

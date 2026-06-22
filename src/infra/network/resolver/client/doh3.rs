@@ -5,15 +5,13 @@
 
 use async_trait::async_trait;
 #[cfg(feature = "resolver-doh3")]
-use bytes::BufMut;
-#[cfg(feature = "resolver-doh3")]
 use futures::future::poll_fn;
 #[cfg(feature = "resolver-doh3")]
 use http::Version;
 
 use super::super::endpoint::NameserverConfig;
 #[cfg(feature = "resolver-doh3")]
-use super::doh::{build_doh_get_request, doh_request_uri, response_buffer};
+use super::doh::{append_response_chunk, build_doh_get_request, doh_request_uri, response_buffer};
 use super::{NameserverClient, effective_deadline};
 use crate::infra::error::{DnsError, Result};
 #[cfg(feature = "resolver-doh3")]
@@ -129,7 +127,7 @@ async fn query_doh3_config(
         let Some(partial_bytes) = data else {
             break;
         };
-        response_bytes.put(partial_bytes);
+        append_response_chunk(&mut response_bytes, partial_bytes)?;
     }
     if !response.status().is_success() {
         return Err(DnsError::protocol(format!(

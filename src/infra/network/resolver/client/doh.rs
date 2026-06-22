@@ -9,7 +9,7 @@ use base64::Engine;
 #[cfg(feature = "resolver-doh")]
 use base64::prelude::BASE64_URL_SAFE_NO_PAD;
 #[cfg(feature = "resolver-doh")]
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 #[cfg(feature = "resolver-doh")]
 use http::Version;
 
@@ -131,10 +131,11 @@ async fn query_doh_config(
         let Some(partial_bytes) = partial_bytes else {
             break;
         };
-        response_bytes.put(
+        append_response_chunk(
+            &mut response_bytes,
             partial_bytes
                 .map_err(|err| DnsError::protocol(format!("H2 response body error: {}", err)))?,
-        );
+        )?;
     }
     if !response.status().is_success() {
         return Err(DnsError::protocol(format!(
@@ -203,6 +204,21 @@ pub(super) fn response_buffer<T>(response: &http::Response<T>) -> BytesMut {
     BytesMut::with_capacity(capacity)
 }
 
+#[cfg(feature = "resolver-doh")]
+pub(super) fn append_response_chunk(response: &mut BytesMut, chunk: impl Buf) -> Result<()> {
+    let next_len = response
+        .len()
+        .checked_add(chunk.remaining())
+        .ok_or_else(|| DnsError::protocol("DoH response body exceeds DNS message size limit"))?;
+    if next_len > MAX_DNS_MESSAGE_LEN {
+        return Err(DnsError::protocol(
+            "DoH response body exceeds DNS message size limit",
+        ));
+    }
+    response.put(chunk);
+    Ok(())
+}
+
 #[cfg(all(test, feature = "resolver-doh"))]
 mod tests {
     use std::time::Duration;
@@ -234,5 +250,16 @@ mod tests {
         let buffer = response_buffer(&response);
 
         assert_eq!(buffer.capacity(), MAX_DNS_MESSAGE_LEN);
+    }
+
+    #[test]
+    fn test_append_response_chunk_rejects_oversized_body() {
+        let mut buffer = BytesMut::new();
+        buffer.resize(MAX_DNS_MESSAGE_LEN, 0);
+
+        let err = append_response_chunk(&mut buffer, Bytes::from_static(b"x"))
+            .expect_err("oversized response should fail");
+
+        assert!(err.to_string().contains("DNS message size limit"));
     }
 }

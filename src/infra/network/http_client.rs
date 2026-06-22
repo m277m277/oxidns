@@ -339,7 +339,7 @@ impl Service<Uri> for HttpConnector {
                         dst
                     ))
                 })?;
-            let mut remote_ip = host.parse::<IpAddr>().ok();
+            let mut remote_ip = parse_uri_host_ip_literal(host);
             let socks5 = outbound.proxy();
             if remote_ip.is_none() && socks5.is_none() {
                 remote_ip = Some(outbound.resolve_host(host, port).await?);
@@ -486,6 +486,16 @@ fn request_label(method: &Method, url: &str) -> String {
     format!("{method} {url}")
 }
 
+fn parse_uri_host_ip_literal(host: &str) -> Option<IpAddr> {
+    if let Some(inner) = host
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+    {
+        return inner.parse::<std::net::Ipv6Addr>().ok().map(IpAddr::V6);
+    }
+    host.parse::<std::net::Ipv4Addr>().ok().map(IpAddr::V4)
+}
+
 pub fn resolve_redirect_url(current_url: &str, location: &str) -> Result<String> {
     let base = Url::parse(current_url).map_err(|err| {
         DnsError::plugin(format!(
@@ -551,5 +561,19 @@ mod tests {
         assert_eq!(request.method(), Method::PATCH);
         assert_eq!(request.uri(), "https://example.com/api");
         assert_eq!(request.headers()["x-test"], "1");
+    }
+
+    #[test]
+    fn test_parse_uri_host_ip_literal_requires_bracketed_ipv6() {
+        assert_eq!(
+            parse_uri_host_ip_literal("[::1]"),
+            Some(IpAddr::V6(std::net::Ipv6Addr::LOCALHOST))
+        );
+        assert_eq!(
+            parse_uri_host_ip_literal("127.0.0.1"),
+            Some(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        );
+        assert_eq!(parse_uri_host_ip_literal("::1"), None);
+        assert_eq!(parse_uri_host_ip_literal("example.com"), None);
     }
 }
