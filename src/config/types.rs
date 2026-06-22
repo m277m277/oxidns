@@ -6,10 +6,13 @@
 //! Defines the schema for OxiDNS configuration files (YAML format).
 
 use std::collections::HashMap;
+use std::net::SocketAddr;
 
 use serde::Deserialize;
 use serde_yaml_ng::Value;
 use thiserror::Error;
+
+use crate::infra::network::proxy::validate_socks5_syntax;
 
 /// Configuration validation errors
 #[derive(Debug, Error)]
@@ -272,6 +275,14 @@ impl OutboundResolverConfig {
                         profile_name
                     )));
                 }
+                for server in servers {
+                    if server.trim().parse::<SocketAddr>().is_err() {
+                        return Err(ConfigError::InvalidNetworkOutbound(format!(
+                            "profile '{}' bootstrap resolver server '{}' must be a literal IP:port",
+                            profile_name, server
+                        )));
+                    }
+                }
                 if !matches!(bootstrap_version, None | Some(4) | Some(6)) {
                     return Err(ConfigError::InvalidNetworkOutbound(format!(
                         "profile '{}' bootstrap_version must be 4 or 6",
@@ -326,6 +337,12 @@ impl OutboundProxyConfig {
                 Err(ConfigError::InvalidNetworkOutbound(format!(
                     "profile '{}' socks5 proxy cannot be empty",
                     profile_name
+                )))
+            }
+            Self::Socks5 { socks5 } if !validate_socks5_syntax(socks5) => {
+                Err(ConfigError::InvalidNetworkOutbound(format!(
+                    "profile '{}' has invalid socks5 proxy '{}'",
+                    profile_name, socks5
                 )))
             }
             Self::Socks5 { .. } => Ok(()),
@@ -694,6 +711,95 @@ network:
           bootstrap_version: 4
         proxy:
           socks5: 127.0.0.1:1080
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_rejects_hostname_bootstrap_outbound_server() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          bootstrap: resolver.example.com:53
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("hostname bootstrap server should fail validation");
+        assert!(matches!(err, ConfigError::InvalidNetworkOutbound(_)));
+    }
+
+    #[test]
+    fn test_validate_rejects_bootstrap_outbound_server_without_port() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          bootstrap: 1.1.1.1
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("bootstrap server without port should fail validation");
+        assert!(matches!(err, ConfigError::InvalidNetworkOutbound(_)));
+    }
+
+    #[test]
+    fn test_validate_rejects_malformed_socks5_outbound_proxy() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        proxy:
+          socks5: 127.0.0.1
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("malformed socks5 proxy should fail validation");
+        assert!(matches!(err, ConfigError::InvalidNetworkOutbound(_)));
+    }
+
+    #[test]
+    fn test_validate_accepts_hostname_socks5_outbound_proxy_syntax() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        proxy:
+          socks5: user:pass@proxy.example.com:1080
 plugins:
   - tag: ok
     type: debug_print

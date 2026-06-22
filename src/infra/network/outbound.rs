@@ -48,6 +48,10 @@ impl OutboundPolicy {
         self.resolver.resolve_host(host, port).await
     }
 
+    pub(crate) fn resolves_before_proxy(&self) -> bool {
+        self.resolver.resolves_before_proxy()
+    }
+
     fn with_proxy(mut self, proxy: ProxyPolicy) -> Self {
         self.proxy = proxy;
         self
@@ -67,6 +71,10 @@ enum ResolverPolicy {
 }
 
 impl ResolverPolicy {
+    fn resolves_before_proxy(&self) -> bool {
+        matches!(self, Self::Bootstrap(_))
+    }
+
     async fn resolve_host(&self, host: &str, port: u16) -> Result<IpAddr> {
         match self {
             Self::System => resolve_system(host, port).await,
@@ -272,5 +280,17 @@ mod tests {
             .resolve_policy(Some("oversea"), None)
             .expect("profile should resolve");
         assert!(policy.proxy().is_some());
+        assert!(policy.resolves_before_proxy());
+    }
+
+    #[test]
+    fn test_system_resolver_does_not_resolve_before_proxy() {
+        let policy = OutboundPolicy::system(Some(Socks5Opt {
+            username: None,
+            password: None,
+            socket_addr: "127.0.0.1:1080".parse().expect("socket addr should parse"),
+        }));
+
+        assert!(!policy.resolves_before_proxy());
     }
 }

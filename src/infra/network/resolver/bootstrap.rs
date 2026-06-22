@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -27,6 +27,7 @@ use crate::infra::network::transport::udp_transport::UdpTransport;
 use crate::proto::{DNSClass, Message, MessageType, Name, Opcode, Question, Record, RecordType};
 
 const UDP_RECV_BUFFER_SIZE: usize = 8_196;
+const DEFAULT_BOOTSTRAP_ENTRY_LIMIT: usize = 4_096;
 
 const STATE_NONE: u8 = 0;
 const STATE_QUERYING: u8 = 1;
@@ -45,6 +46,7 @@ pub(crate) struct BootstrapResolver {
     clients: Vec<Arc<dyn BootstrapQueryClient>>,
     ip_version: Option<u8>,
     entries: Mutex<HashMap<String, Arc<BootstrapEntry>>>,
+    entry_limit: usize,
 }
 
 impl BootstrapResolver {
@@ -62,10 +64,19 @@ impl BootstrapResolver {
     }
 
     fn from_clients(clients: Vec<Arc<dyn BootstrapQueryClient>>, ip_version: Option<u8>) -> Self {
+        Self::from_clients_with_entry_limit(clients, ip_version, DEFAULT_BOOTSTRAP_ENTRY_LIMIT)
+    }
+
+    fn from_clients_with_entry_limit(
+        clients: Vec<Arc<dyn BootstrapQueryClient>>,
+        ip_version: Option<u8>,
+        entry_limit: usize,
+    ) -> Self {
         Self {
             clients,
             ip_version,
             entries: Mutex::new(HashMap::new()),
+            entry_limit,
         }
     }
 
@@ -82,15 +93,40 @@ impl BootstrapResolver {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         if let Some(entry) = entries.get(&domain) {
+            entry.touch(AppClock::elapsed_millis());
             return Ok(entry.clone());
+        }
+        if self.entry_limit > 0 && entries.len() >= self.entry_limit {
+            prune_entries(&mut entries, self.entry_limit, AppClock::elapsed_millis());
         }
         let entry = Arc::new(BootstrapEntry::new(
             domain.clone(),
             self.ip_version,
             self.clients.clone(),
         )?);
+        entry.touch(AppClock::elapsed_millis());
         entries.insert(domain, entry.clone());
         Ok(entry)
+    }
+}
+
+fn prune_entries(
+    entries: &mut HashMap<String, Arc<BootstrapEntry>>,
+    entry_limit: usize,
+    now_ms: u64,
+) {
+    entries.retain(|_, entry| !entry.can_prune_expired(now_ms));
+
+    while entries.len() >= entry_limit {
+        let Some(key) = entries
+            .iter()
+            .filter(|(_, entry)| !entry.is_querying())
+            .min_by_key(|(_, entry)| entry.last_used_at())
+            .map(|(domain, _)| domain.clone())
+        else {
+            break;
+        };
+        entries.remove(&key);
     }
 }
 
@@ -208,6 +244,8 @@ struct BootstrapEntry {
     clients: Vec<Arc<dyn BootstrapQueryClient>>,
     state: AtomicU8,
     cache: RwLock<Option<CacheData>>,
+    cache_expires_at: AtomicU64,
+    last_used_at: AtomicU64,
     query_done: Notify,
     message: Message,
     query_name: Name,
@@ -244,6 +282,8 @@ impl BootstrapEntry {
             clients,
             state: AtomicU8::new(STATE_NONE),
             cache: RwLock::new(None),
+            cache_expires_at: AtomicU64::new(0),
+            last_used_at: AtomicU64::new(0),
             query_done: Notify::new(),
             message,
             query_name: parsed_name,
@@ -253,6 +293,7 @@ impl BootstrapEntry {
 
     #[inline]
     async fn get_with_deadline(&self, deadline: QueryDeadline) -> Result<IpAddr> {
+        self.touch(AppClock::elapsed_millis());
         let mut failed_count = 0;
 
         loop {
@@ -370,6 +411,7 @@ impl BootstrapEntry {
                         let ttl = ttl_seconds as u64 * 1000;
                         let expires_at = AppClock::elapsed_millis().saturating_add(ttl);
                         *self.cache.write().await = Some(CacheData { ip, expires_at });
+                        self.cache_expires_at.store(expires_at, Ordering::Release);
                         self.state.store(STATE_CACHED, Ordering::Release);
                         self.query_done.notify_waiters();
                         return;
@@ -403,6 +445,29 @@ impl BootstrapEntry {
         }
         self.state.store(STATE_FAILED, Ordering::Release);
         self.query_done.notify_waiters();
+    }
+
+    fn touch(&self, now_ms: u64) {
+        self.last_used_at.store(now_ms, Ordering::Relaxed);
+    }
+
+    fn last_used_at(&self) -> u64 {
+        self.last_used_at.load(Ordering::Relaxed)
+    }
+
+    fn is_querying(&self) -> bool {
+        self.state.load(Ordering::Acquire) == STATE_QUERYING
+    }
+
+    fn can_prune_expired(&self, now_ms: u64) -> bool {
+        match self.state.load(Ordering::Acquire) {
+            STATE_QUERYING => false,
+            STATE_CACHED => {
+                let expires_at = self.cache_expires_at.load(Ordering::Acquire);
+                expires_at == 0 || now_ms >= expires_at
+            }
+            _ => true,
+        }
     }
 }
 
@@ -828,6 +893,173 @@ mod tests {
         assert_eq!(first, IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1)));
         assert_eq!(second, IpAddr::V4(Ipv4Addr::new(203, 0, 113, 2)));
         assert_eq!(client.count(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_resolver_prunes_expired_entries_before_insert() {
+        start_clock();
+        let client = Arc::new(FakeClient::new(
+            "fake",
+            vec![
+                FakeOutcome::Response(answer_response(
+                    "one.example.",
+                    60,
+                    IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1)),
+                )),
+                FakeOutcome::Response(answer_response(
+                    "two.example.",
+                    60,
+                    IpAddr::V4(Ipv4Addr::new(203, 0, 113, 2)),
+                )),
+                FakeOutcome::Response(answer_response(
+                    "three.example.",
+                    60,
+                    IpAddr::V4(Ipv4Addr::new(203, 0, 113, 3)),
+                )),
+            ],
+        ));
+        let resolver =
+            BootstrapResolver::from_clients_with_entry_limit(vec![client.clone()], None, 2);
+
+        resolver
+            .resolve(
+                "one.example",
+                QueryDeadline::new(Duration::from_millis(200)),
+            )
+            .await
+            .expect("first domain should resolve");
+        resolver
+            .resolve(
+                "two.example",
+                QueryDeadline::new(Duration::from_millis(200)),
+            )
+            .await
+            .expect("second domain should resolve");
+
+        let expired = resolver
+            .entries
+            .lock()
+            .expect("entries lock should not be poisoned")
+            .get("one.example.")
+            .expect("first entry should exist")
+            .clone();
+        expired.cache_expires_at.store(0, Ordering::Release);
+
+        resolver
+            .resolve(
+                "three.example",
+                QueryDeadline::new(Duration::from_millis(200)),
+            )
+            .await
+            .expect("third domain should resolve");
+
+        let entries = resolver
+            .entries
+            .lock()
+            .expect("entries lock should not be poisoned");
+        assert_eq!(entries.len(), 2);
+        assert!(!entries.contains_key("one.example."));
+        assert!(entries.contains_key("two.example."));
+        assert!(entries.contains_key("three.example."));
+    }
+
+    #[tokio::test]
+    async fn test_resolver_evicts_lru_non_querying_entry_at_limit() {
+        start_clock();
+        let client = Arc::new(FakeClient::new(
+            "fake",
+            vec![
+                FakeOutcome::Response(answer_response(
+                    "one.example.",
+                    60,
+                    IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1)),
+                )),
+                FakeOutcome::Response(answer_response(
+                    "two.example.",
+                    60,
+                    IpAddr::V4(Ipv4Addr::new(203, 0, 113, 2)),
+                )),
+                FakeOutcome::Response(answer_response(
+                    "three.example.",
+                    60,
+                    IpAddr::V4(Ipv4Addr::new(203, 0, 113, 3)),
+                )),
+            ],
+        ));
+        let resolver =
+            BootstrapResolver::from_clients_with_entry_limit(vec![client.clone()], None, 2);
+
+        resolver
+            .resolve(
+                "one.example",
+                QueryDeadline::new(Duration::from_millis(200)),
+            )
+            .await
+            .expect("first domain should resolve");
+        resolver
+            .resolve(
+                "two.example",
+                QueryDeadline::new(Duration::from_millis(200)),
+            )
+            .await
+            .expect("second domain should resolve");
+
+        {
+            let entries = resolver
+                .entries
+                .lock()
+                .expect("entries lock should not be poisoned");
+            entries
+                .get("one.example.")
+                .expect("first entry should exist")
+                .last_used_at
+                .store(20, Ordering::Relaxed);
+            entries
+                .get("two.example.")
+                .expect("second entry should exist")
+                .last_used_at
+                .store(10, Ordering::Relaxed);
+        }
+
+        resolver
+            .resolve(
+                "three.example",
+                QueryDeadline::new(Duration::from_millis(200)),
+            )
+            .await
+            .expect("third domain should resolve");
+
+        let entries = resolver
+            .entries
+            .lock()
+            .expect("entries lock should not be poisoned");
+        assert_eq!(entries.len(), 2);
+        assert!(entries.contains_key("one.example."));
+        assert!(!entries.contains_key("two.example."));
+        assert!(entries.contains_key("three.example."));
+    }
+
+    #[test]
+    fn test_resolver_keeps_querying_entries_when_at_limit() {
+        start_clock();
+        let client = Arc::new(FakeClient::new("fake", Vec::new()));
+        let resolver = BootstrapResolver::from_clients_with_entry_limit(vec![client], None, 1);
+        let querying = resolver
+            .entry_for("one.example.".to_string())
+            .expect("first entry should be created");
+        querying.state.store(STATE_QUERYING, Ordering::Release);
+
+        resolver
+            .entry_for("two.example.".to_string())
+            .expect("second entry should be created");
+
+        let entries = resolver
+            .entries
+            .lock()
+            .expect("entries lock should not be poisoned");
+        assert_eq!(entries.len(), 2);
+        assert!(entries.contains_key("one.example."));
+        assert!(entries.contains_key("two.example."));
     }
 
     #[test]
