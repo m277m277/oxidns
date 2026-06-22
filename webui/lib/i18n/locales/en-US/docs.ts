@@ -62,6 +62,8 @@ export const enUSDocs = {
       "- Type: `string`; Required: No; Default: None\n- Function: Provide log identification for a single upstream to facilitate troubleshooting multi-upstream competition results.",
     "upstreams[].dial_addr":
       "- Type: `ip`; Required: No; Default: None\n- Function: Specify the actual connection IP, while retaining the host name in `addr` for SNI, Host and certificate verification.\n- Applicable scenarios: fixed dial-up address, bypassing local resolution or matching with custom routing exports.",
+    "upstreams[].outbound":
+      "- Type: `string`; Required: No; Default: None\n- Function: Reference a profile from `network.outbound.profiles` to inject resolver and proxy defaults into this upstream.\n- Override rules: local `dial_addr` takes precedence over resolver use; local `bootstrap` takes precedence over the outbound resolver; local `socks5` takes precedence over the profile proxy.",
     "upstreams[].port":
       "- Type: `integer`; required: no; default value: protocol default port\n- Function: Override the protocol default port.",
     "upstreams[].bootstrap":

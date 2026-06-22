@@ -345,6 +345,12 @@ export const enUSPluginDefined = {
             "Define the upstream address, protocol type, and target host.",
           placeholder: "udp://1.1.1.1:53",
         },
+        "upstreams[].outbound": {
+          label: "Outbound Profile",
+          description:
+            "Reference a profile from network.outbound.profiles to inject resolver and proxy defaults into this upstream. Local dial_addr, bootstrap, and socks5 take precedence.",
+          placeholder: "oversea",
+        },
         "upstreams[].dial_addr": {
           label: "Dial-up IP",
           description:

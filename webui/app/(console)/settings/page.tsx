@@ -38,14 +38,38 @@ import {
   Cpu,
   FileCode2,
   Globe,
+  Network,
   PlugZap,
+  Plus,
   RefreshCw,
   ScrollText,
   Server,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { WEBUI } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/provider";
+
+type OutboundResolverMode = "system" | "nameservers";
+type OutboundResolverIpVersion = "4" | "6";
+type OutboundResolverProxyMode = "none" | "profile";
+
+interface OutboundNameserverForm {
+  id: string;
+  addr: string;
+  dialAddr: string;
+}
+
+interface OutboundProfileForm {
+  id: string;
+  name: string;
+  resolverMode: OutboundResolverMode;
+  ipVersion: OutboundResolverIpVersion;
+  timeout: string;
+  resolverProxy: OutboundResolverProxyMode;
+  socks5: string;
+  nameservers: OutboundNameserverForm[];
+}
 
 export default function SettingsPage() {
   const { t } = useI18n();
@@ -112,6 +136,10 @@ export default function SettingsPage() {
   const [logFile, setLogFile] = useState("");
   const [rotationType, setRotationType] = useState("never");
   const [maxFiles, setMaxFiles] = useState("");
+  const [outboundDefault, setOutboundDefault] = useState("");
+  const [outboundProfiles, setOutboundProfiles] = useState<
+    OutboundProfileForm[]
+  >([]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -126,6 +154,8 @@ export default function SettingsPage() {
       const webui = asRecord(httpObj.webui);
       const log = asRecord(configModel.log);
       const rotation = asRecord(log.rotation);
+      const network = asRecord(configModel.network);
+      const outbound = asRecord(network.outbound);
 
       setWorkerThreads(String(runtime.worker_threads ?? ""));
       setApiListen(String(httpObj.listen ?? ""));
@@ -148,6 +178,8 @@ export default function SettingsPage() {
       setLogFile(String(log.file ?? ""));
       setRotationType(String(rotation.type ?? "never"));
       setMaxFiles(rotation.max_files != null ? String(rotation.max_files) : "");
+      setOutboundDefault(String(outbound.default ?? ""));
+      setOutboundProfiles(parseOutboundProfiles(outbound));
     }, 0);
     return () => window.clearTimeout(timer);
   }, [configModel]);
@@ -290,11 +322,24 @@ export default function SettingsPage() {
     } else {
       delete nextApi.http;
     }
+    const nextNetwork: Record<string, unknown> = {
+      ...asRecord(configModel.network),
+    };
+    const outboundConfig = buildNetworkOutboundConfig(
+      outboundDefault,
+      outboundProfiles,
+    );
+    if (outboundConfig) {
+      nextNetwork.outbound = outboundConfig;
+    } else {
+      delete nextNetwork.outbound;
+    }
 
     return {
       ...configModel,
       runtime: Object.keys(nextRuntime).length > 0 ? nextRuntime : undefined,
       api: Object.keys(nextApi).length > 0 ? nextApi : undefined,
+      network: Object.keys(nextNetwork).length > 0 ? nextNetwork : undefined,
       log: {
         ...asRecord(configModel.log),
         level: logLevel,
@@ -354,6 +399,92 @@ export default function SettingsPage() {
     setNewAuthPassword("");
     setConfirmAuthPassword("");
     await restartApp();
+  };
+
+  const addOutboundProfile = () => {
+    const profile = createOutboundProfileForm(
+      nextOutboundProfileName(outboundProfiles),
+    );
+    setOutboundProfiles((profiles) => [...profiles, profile]);
+    if (!outboundDefault.trim()) setOutboundDefault(profile.name);
+  };
+
+  const updateOutboundProfile = (
+    id: string,
+    patch: Partial<OutboundProfileForm>,
+  ) => {
+    setOutboundProfiles((profiles) =>
+      profiles.map((profile) =>
+        profile.id === id ? { ...profile, ...patch } : profile,
+      ),
+    );
+  };
+
+  const removeOutboundProfile = (id: string) => {
+    setOutboundProfiles((profiles) => {
+      const removed = profiles.find((profile) => profile.id === id);
+      const nextProfiles = profiles.filter((profile) => profile.id !== id);
+      if (removed && outboundDefault === removed.name) {
+        setOutboundDefault(nextProfiles[0]?.name ?? "");
+      }
+      return nextProfiles;
+    });
+  };
+
+  const addOutboundNameserver = (profileId: string) => {
+    setOutboundProfiles((profiles) =>
+      profiles.map((profile) =>
+        profile.id === profileId
+          ? {
+              ...profile,
+              resolverMode: "nameservers",
+              nameservers: [
+                ...profile.nameservers,
+                createOutboundNameserverForm(),
+              ],
+            }
+          : profile,
+      ),
+    );
+  };
+
+  const updateOutboundNameserver = (
+    profileId: string,
+    nameserverId: string,
+    patch: Partial<OutboundNameserverForm>,
+  ) => {
+    setOutboundProfiles((profiles) =>
+      profiles.map((profile) =>
+        profile.id === profileId
+          ? {
+              ...profile,
+              nameservers: profile.nameservers.map((nameserver) =>
+                nameserver.id === nameserverId
+                  ? { ...nameserver, ...patch }
+                  : nameserver,
+              ),
+            }
+          : profile,
+      ),
+    );
+  };
+
+  const removeOutboundNameserver = (
+    profileId: string,
+    nameserverId: string,
+  ) => {
+    setOutboundProfiles((profiles) =>
+      profiles.map((profile) =>
+        profile.id === profileId
+          ? {
+              ...profile,
+              nameservers: profile.nameservers.filter(
+                (nameserver) => nameserver.id !== nameserverId,
+              ),
+            }
+          : profile,
+      ),
+    );
   };
 
   return (
@@ -714,6 +845,331 @@ export default function SettingsPage() {
                       className="font-mono max-w-xs"
                     />
                   </Field>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={handleSaveTopLevelConfig}
+                      disabled={isConfigSaving || isRestarting || !isConnected}
+                    >
+                      {t(WEBUI.common.saveConfig)}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleRestartTopLevelConfig}
+                      disabled={isConfigSaving || isRestarting || !isConnected}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1.5" />
+                      {isRestarting
+                        ? t(WEBUI.settings.restarting)
+                        : t(WEBUI.settings.saveAndRestart)}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Network className="h-5 w-5" />
+                    {t(WEBUI.settings.outboundCard)}
+                  </CardTitle>
+                  <CardDescription>
+                    {t(WEBUI.settings.outboundCardDesc)}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <Field>
+                      <FieldLabel>
+                        {t(WEBUI.settings.defaultOutboundProfile)}
+                      </FieldLabel>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {t(WEBUI.settings.defaultOutboundProfileDesc)}
+                      </p>
+                      <Select
+                        value={outboundDefault || "__unset__"}
+                        onValueChange={(value) =>
+                          setOutboundDefault(value === "__unset__" ? "" : value)
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__unset__">
+                            {t(WEBUI.common.unconfigured)}
+                          </SelectItem>
+                          {outboundProfiles
+                            .filter((profile) => profile.name.trim())
+                            .map((profile) => (
+                              <SelectItem
+                                key={profile.id}
+                                value={profile.name.trim()}
+                              >
+                                {profile.name.trim()}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={addOutboundProfile}
+                      >
+                        <Plus className="h-4 w-4 mr-1.5" />
+                        {t(WEBUI.settings.addOutboundProfile)}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {outboundProfiles.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      {t(WEBUI.settings.noOutboundProfiles)}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {outboundProfiles.map((profile, profileIndex) => (
+                        <div
+                          key={profile.id}
+                          className="space-y-4 rounded-lg border bg-background/60 p-4"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">
+                                {t(WEBUI.settings.outboundProfileTitle, {
+                                  index: String(profileIndex + 1),
+                                })}
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {t(WEBUI.settings.outboundProfileItemDesc)}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => removeOutboundProfile(profile.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">
+                                {t(WEBUI.settings.removeOutboundProfile)}
+                              </span>
+                            </Button>
+                          </div>
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <Field>
+                              <FieldLabel>
+                                {t(WEBUI.settings.outboundProfileName)}
+                              </FieldLabel>
+                              <Input
+                                value={profile.name}
+                                onChange={(event) =>
+                                  updateOutboundProfile(profile.id, {
+                                    name: event.target.value,
+                                  })
+                                }
+                                placeholder="oversea"
+                                className="font-mono"
+                              />
+                            </Field>
+                            <Field>
+                              <FieldLabel>
+                                {t(WEBUI.settings.outboundProfileSocks5)}
+                              </FieldLabel>
+                              <Input
+                                value={profile.socks5}
+                                onChange={(event) =>
+                                  updateOutboundProfile(profile.id, {
+                                    socks5: event.target.value,
+                                  })
+                                }
+                                placeholder="127.0.0.1:1080"
+                                className="font-mono"
+                              />
+                            </Field>
+                            <Field>
+                              <FieldLabel>
+                                {t(WEBUI.settings.resolverMode)}
+                              </FieldLabel>
+                              <Select
+                                value={profile.resolverMode}
+                                onValueChange={(value) =>
+                                  updateOutboundProfile(profile.id, {
+                                    resolverMode: value as OutboundResolverMode,
+                                  })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="system">
+                                    {t(WEBUI.settings.resolverModeSystem)}
+                                  </SelectItem>
+                                  <SelectItem value="nameservers">
+                                    {t(WEBUI.settings.resolverModeNameservers)}
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </Field>
+                            {profile.resolverMode === "nameservers" && (
+                              <>
+                                <Field>
+                                  <FieldLabel>
+                                    {t(WEBUI.settings.resolverIpVersion)}
+                                  </FieldLabel>
+                                  <Select
+                                    value={profile.ipVersion}
+                                    onValueChange={(value) =>
+                                      updateOutboundProfile(profile.id, {
+                                        ipVersion:
+                                          value as OutboundResolverIpVersion,
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="4">IPv4</SelectItem>
+                                      <SelectItem value="6">IPv6</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </Field>
+                                <Field>
+                                  <FieldLabel>
+                                    {t(WEBUI.settings.resolverTimeout)}
+                                  </FieldLabel>
+                                  <Input
+                                    value={profile.timeout}
+                                    onChange={(event) =>
+                                      updateOutboundProfile(profile.id, {
+                                        timeout: event.target.value,
+                                      })
+                                    }
+                                    placeholder="5s"
+                                    className="font-mono"
+                                  />
+                                </Field>
+                                <Field>
+                                  <FieldLabel>
+                                    {t(WEBUI.settings.resolverProxy)}
+                                  </FieldLabel>
+                                  <Select
+                                    value={profile.resolverProxy}
+                                    onValueChange={(value) =>
+                                      updateOutboundProfile(profile.id, {
+                                        resolverProxy:
+                                          value as OutboundResolverProxyMode,
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none">
+                                        {t(WEBUI.settings.resolverProxyNone)}
+                                      </SelectItem>
+                                      <SelectItem value="profile">
+                                        {t(WEBUI.settings.resolverProxyProfile)}
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </Field>
+                              </>
+                            )}
+                          </div>
+
+                          {profile.resolverMode === "nameservers" && (
+                            <div className="space-y-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-medium">
+                                    {t(WEBUI.settings.nameservers)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {t(WEBUI.settings.nameserversDesc)}
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    addOutboundNameserver(profile.id)
+                                  }
+                                >
+                                  <Plus className="h-4 w-4 mr-1.5" />
+                                  {t(WEBUI.settings.addNameserver)}
+                                </Button>
+                              </div>
+                              {profile.nameservers.length === 0 ? (
+                                <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                                  {t(WEBUI.settings.noNameservers)}
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {profile.nameservers.map((nameserver) => (
+                                    <div
+                                      key={nameserver.id}
+                                      className="grid gap-2 rounded-lg border p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_auto]"
+                                    >
+                                      <Input
+                                        value={nameserver.addr}
+                                        onChange={(event) =>
+                                          updateOutboundNameserver(
+                                            profile.id,
+                                            nameserver.id,
+                                            { addr: event.target.value },
+                                          )
+                                        }
+                                        placeholder="tls://dns.google:853"
+                                        className="font-mono"
+                                      />
+                                      <Input
+                                        value={nameserver.dialAddr}
+                                        onChange={(event) =>
+                                          updateOutboundNameserver(
+                                            profile.id,
+                                            nameserver.id,
+                                            { dialAddr: event.target.value },
+                                          )
+                                        }
+                                        placeholder={t(
+                                          WEBUI.settings.dialAddrPlaceholder,
+                                        )}
+                                        className="font-mono"
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() =>
+                                          removeOutboundNameserver(
+                                            profile.id,
+                                            nameserver.id,
+                                          )
+                                        }
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        <span className="sr-only">
+                                          {t(WEBUI.settings.removeNameserver)}
+                                        </span>
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap gap-2">
                     <Button
                       onClick={handleSaveTopLevelConfig}
@@ -1418,6 +1874,129 @@ function InfoTile({ label, value }: { label: string; value: string }) {
       </div>
     </div>
   );
+}
+
+function parseOutboundProfiles(
+  outbound: Record<string, unknown>,
+): OutboundProfileForm[] {
+  const profiles = asRecord(outbound.profiles);
+  return Object.entries(profiles).map(([name, rawProfile]) => {
+    const profile = asRecord(rawProfile);
+    const resolver = profile.resolver;
+    const resolverConfig = asRecord(resolver);
+    const proxy = asRecord(profile.proxy);
+    const nameservers = Array.isArray(resolverConfig.nameservers)
+      ? resolverConfig.nameservers
+          .map((rawNameserver) => {
+            const nameserver = asRecord(rawNameserver);
+            return {
+              id: createFormId(),
+              addr: String(nameserver.addr ?? ""),
+              dialAddr: String(nameserver.dial_addr ?? ""),
+            };
+          })
+          .filter((nameserver) => nameserver.addr.trim())
+      : [];
+
+    return {
+      id: createFormId(),
+      name,
+      resolverMode:
+        resolver && typeof resolver === "object" && nameservers.length > 0
+          ? "nameservers"
+          : "system",
+      ipVersion: String(resolverConfig.ip_version ?? "4") === "6" ? "6" : "4",
+      timeout: String(resolverConfig.timeout ?? ""),
+      resolverProxy:
+        String(resolverConfig.proxy ?? "none") === "profile"
+          ? "profile"
+          : "none",
+      socks5: String(proxy.socks5 ?? ""),
+      nameservers,
+    };
+  });
+}
+
+function buildNetworkOutboundConfig(
+  defaultProfile: string,
+  profiles: OutboundProfileForm[],
+): Record<string, unknown> | undefined {
+  const namedProfiles = profiles
+    .map((profile) => ({ ...profile, name: profile.name.trim() }))
+    .filter((profile) => profile.name);
+  if (namedProfiles.length === 0) return undefined;
+
+  const profileRecords = Object.fromEntries(
+    namedProfiles.map((profile) => {
+      const profileConfig: Record<string, unknown> = {};
+      if (profile.resolverMode === "nameservers") {
+        const nameservers = profile.nameservers
+          .map((nameserver) => ({
+            addr: nameserver.addr.trim(),
+            dial_addr: nameserver.dialAddr.trim() || undefined,
+          }))
+          .filter((nameserver) => nameserver.addr);
+        if (nameservers.length > 0) {
+          profileConfig.resolver = {
+            nameservers,
+            ip_version: Number(profile.ipVersion),
+            ...(profile.timeout.trim()
+              ? { timeout: profile.timeout.trim() }
+              : {}),
+            ...(profile.resolverProxy === "profile"
+              ? { proxy: "profile" }
+              : {}),
+          };
+        }
+      }
+      if (profile.socks5.trim()) {
+        profileConfig.proxy = { socks5: profile.socks5.trim() };
+      }
+      return [profile.name, profileConfig];
+    }),
+  );
+  const defaultName = defaultProfile.trim();
+  const hasDefault =
+    defaultName &&
+    namedProfiles.some((profile) => profile.name === defaultName);
+
+  return {
+    ...(hasDefault ? { default: defaultName } : {}),
+    profiles: profileRecords,
+  };
+}
+
+function createOutboundProfileForm(name = ""): OutboundProfileForm {
+  return {
+    id: createFormId(),
+    name,
+    resolverMode: "system",
+    ipVersion: "4",
+    timeout: "5s",
+    resolverProxy: "none",
+    socks5: "",
+    nameservers: [],
+  };
+}
+
+function createOutboundNameserverForm(): OutboundNameserverForm {
+  return {
+    id: createFormId(),
+    addr: "",
+    dialAddr: "",
+  };
+}
+
+function nextOutboundProfileName(profiles: OutboundProfileForm[]) {
+  const used = new Set(profiles.map((profile) => profile.name.trim()));
+  for (let index = 1; ; index += 1) {
+    const name = index === 1 ? "oversea" : `oversea${index}`;
+    if (!used.has(name)) return name;
+  }
+}
+
+function createFormId() {
+  return Math.random().toString(36).slice(2);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

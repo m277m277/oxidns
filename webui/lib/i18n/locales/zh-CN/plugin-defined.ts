@@ -307,6 +307,12 @@ export const zhCNPluginDefined = {
           description: "定义上游地址、协议类型以及目标主机。",
           placeholder: "udp://1.1.1.1:53",
         },
+        "upstreams[].outbound": {
+          label: "出站配置",
+          description:
+            "引用 network.outbound.profiles 中的出站配置，为该上游注入 resolver 和 proxy；本地 dial_addr、bootstrap、socks5 优先生效。",
+          placeholder: "oversea",
+        },
         "upstreams[].dial_addr": {
           label: "拨号 IP",
           description:
