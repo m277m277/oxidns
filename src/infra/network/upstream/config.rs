@@ -465,7 +465,9 @@ impl TryFrom<UpstreamConfig> for ConnectionInfo {
         };
 
         let raw_socks5 = if let Some(socks5_str) = socks5.as_deref() {
-            parse_socks5_opt(socks5_str)
+            Some(parse_socks5_opt(socks5_str).ok_or_else(|| {
+                DnsError::plugin(format!("upstream has invalid socks5 proxy '{socks5_str}'"))
+            })?)
         } else {
             outbound_policy.as_ref().and_then(|policy| policy.proxy())
         };

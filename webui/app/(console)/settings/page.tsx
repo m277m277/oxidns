@@ -2043,28 +2043,33 @@ function rewritePluginOutboundReferences(
     ...config,
     plugins: config.plugins.map((plugin) => ({
       ...plugin,
-      args: rewriteOutboundReferenceValue(plugin.args, renameMap),
+      args: rewritePluginArgsOutboundReferences(plugin.args, renameMap),
     })),
   };
 }
 
-function rewriteOutboundReferenceValue(
-  value: unknown,
+function rewritePluginArgsOutboundReferences(
+  args: unknown,
   renameMap: Map<string, string>,
 ): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => rewriteOutboundReferenceValue(item, renameMap));
-  }
-  if (!isPlainObject(value)) return value;
+  if (!isPlainObject(args)) return args;
 
-  return Object.fromEntries(
-    Object.entries(value).map(([key, child]) => {
-      if (key === "outbound" && typeof child === "string") {
-        return [key, renameMap.get(child) ?? child];
+  const nextArgs: Record<string, unknown> = { ...args };
+  if (typeof nextArgs.outbound === "string") {
+    nextArgs.outbound = renameMap.get(nextArgs.outbound) ?? nextArgs.outbound;
+  }
+  if (Array.isArray(nextArgs.upstreams)) {
+    nextArgs.upstreams = nextArgs.upstreams.map((upstream) => {
+      if (!isPlainObject(upstream) || typeof upstream.outbound !== "string") {
+        return upstream;
       }
-      return [key, rewriteOutboundReferenceValue(child, renameMap)];
-    }),
-  );
+      return {
+        ...upstream,
+        outbound: renameMap.get(upstream.outbound) ?? upstream.outbound,
+      };
+    });
+  }
+  return nextArgs;
 }
 
 function createOutboundNameserverForm(): OutboundNameserverForm {

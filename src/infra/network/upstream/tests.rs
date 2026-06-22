@@ -311,6 +311,22 @@ fn test_connection_info_local_socks5_overrides_outbound_proxy() {
 }
 
 #[test]
+fn test_connection_info_rejects_invalid_local_socks5_with_outbound_proxy() {
+    let _guard = outbound_test_lock()
+        .lock()
+        .expect("outbound test lock should not be poisoned");
+    install_test_outbound_config();
+
+    let mut cfg = make_upstream_config("tcp://1.1.1.1:53");
+    cfg.outbound = Some("oversea".to_string());
+    cfg.socks5 = Some("127.0.0.1".to_string());
+    let err = ConnectionInfo::try_from(cfg).expect_err("malformed local proxy should fail");
+
+    assert!(err.to_string().contains("invalid socks5 proxy"), "{err}");
+    outbound::clear_global();
+}
+
+#[test]
 fn test_connection_info_rejects_invalid_bootstrap_version() {
     let mut cfg = make_upstream_config("tls://dns.example.invalid:853");
     cfg.bootstrap = Some("8.8.8.8:53".to_string());
