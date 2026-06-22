@@ -62,6 +62,7 @@ interface OutboundNameserverForm {
 
 interface OutboundProfileForm {
   id: string;
+  originalName: string;
   name: string;
   resolverMode: OutboundResolverMode;
   ipVersion: OutboundResolverIpVersion;
@@ -140,6 +141,7 @@ export default function SettingsPage() {
   const [outboundProfiles, setOutboundProfiles] = useState<
     OutboundProfileForm[]
   >([]);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -180,6 +182,7 @@ export default function SettingsPage() {
       setMaxFiles(rotation.max_files != null ? String(rotation.max_files) : "");
       setOutboundDefault(String(outbound.default ?? ""));
       setOutboundProfiles(parseOutboundProfiles(outbound));
+      setSettingsError(null);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [configModel]);
@@ -307,8 +310,13 @@ export default function SettingsPage() {
   };
 
   const buildTopLevelConfig = (authOverride?: AuthOverride): OxiDnsConfig => {
+    const outboundRenameMap = outboundProfileRenameMap(outboundProfiles);
+    const baseConfigModel = rewritePluginOutboundReferences(
+      configModel,
+      outboundRenameMap,
+    );
     const nextRuntime: Record<string, unknown> = {
-      ...asRecord(configModel.runtime),
+      ...asRecord(baseConfigModel.runtime),
     };
     if (workerThreads.trim()) {
       nextRuntime.worker_threads = Number(workerThreads);
@@ -316,14 +324,16 @@ export default function SettingsPage() {
       delete nextRuntime.worker_threads;
     }
 
-    const nextApi: Record<string, unknown> = { ...asRecord(configModel.api) };
+    const nextApi: Record<string, unknown> = {
+      ...asRecord(baseConfigModel.api),
+    };
     if (apiListen.trim()) {
       nextApi.http = buildApiHttpConfig(authOverride);
     } else {
       delete nextApi.http;
     }
     const nextNetwork: Record<string, unknown> = {
-      ...asRecord(configModel.network),
+      ...asRecord(baseConfigModel.network),
     };
     const outboundConfig = buildNetworkOutboundConfig(
       outboundDefault,
@@ -336,7 +346,7 @@ export default function SettingsPage() {
     }
 
     return {
-      ...configModel,
+      ...baseConfigModel,
       runtime: Object.keys(nextRuntime).length > 0 ? nextRuntime : undefined,
       api: Object.keys(nextApi).length > 0 ? nextApi : undefined,
       network: Object.keys(nextNetwork).length > 0 ? nextNetwork : undefined,
@@ -358,13 +368,25 @@ export default function SettingsPage() {
   };
 
   const handleSaveTopLevelConfig = async () => {
-    setYamlConfig(stringifyOxiDnsConfig(buildTopLevelConfig()));
-    await saveConfig();
+    try {
+      setSettingsError(null);
+      setYamlConfig(stringifyOxiDnsConfig(buildTopLevelConfig()));
+      await saveConfig();
+    } catch (error) {
+      if (error instanceof Error) setSettingsError(error.message);
+      throw error;
+    }
   };
 
   const handleRestartTopLevelConfig = async () => {
-    setYamlConfig(stringifyOxiDnsConfig(buildTopLevelConfig()));
-    await restartApp();
+    try {
+      setSettingsError(null);
+      setYamlConfig(stringifyOxiDnsConfig(buildTopLevelConfig()));
+      await restartApp();
+    } catch (error) {
+      if (error instanceof Error) setSettingsError(error.message);
+      throw error;
+    }
   };
 
   // Dedicated auth save: updates config.yaml + syncs WebUI connection credentials atomically.
@@ -374,7 +396,13 @@ export default function SettingsPage() {
     pwd: string,
   ) => {
     const override: AuthOverride = { enabled, username: uname, password: pwd };
-    setYamlConfig(stringifyOxiDnsConfig(buildTopLevelConfig(override)));
+    try {
+      setSettingsError(null);
+      setYamlConfig(stringifyOxiDnsConfig(buildTopLevelConfig(override)));
+    } catch (error) {
+      if (error instanceof Error) setSettingsError(error.message);
+      throw error;
+    }
 
     if (enabled && uname.trim()) {
       setServerConfig({
@@ -492,6 +520,8 @@ export default function SettingsPage() {
       ),
     );
   };
+
+  const displayConfigError = settingsError ?? configError;
 
   return (
     <>
@@ -810,17 +840,17 @@ export default function SettingsPage() {
                   />
                   <div className="sm:col-span-2">
                     <Badge
-                      variant={configError ? "destructive" : "outline"}
+                      variant={displayConfigError ? "destructive" : "outline"}
                       className={
-                        configError ? "" : "bg-primary/10 text-primary"
+                        displayConfigError ? "" : "bg-primary/10 text-primary"
                       }
                     >
-                      {configError ? (
+                      {displayConfigError ? (
                         <CircleAlert className="h-3 w-3 mr-1" />
                       ) : (
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                       )}
-                      {configError ?? t(WEBUI.settings.configOkBadge)}
+                      {displayConfigError ?? t(WEBUI.settings.configOkBadge)}
                     </Badge>
                   </div>
                 </CardContent>
@@ -1906,6 +1936,7 @@ function parseOutboundProfiles(
 
     return {
       id: createFormId(),
+      originalName: name,
       name,
       resolverMode:
         resolver && typeof resolver === "object" && nameservers.length > 0
@@ -1927,10 +1958,19 @@ function buildNetworkOutboundConfig(
   defaultProfile: string,
   profiles: OutboundProfileForm[],
 ): Record<string, unknown> | undefined {
+  if (profiles.length === 0) return undefined;
   const namedProfiles = profiles
-    .map((profile) => ({ ...profile, name: profile.name.trim() }))
-    .filter((profile) => profile.name);
-  if (namedProfiles.length === 0) return undefined;
+    .map((profile) => ({ ...profile, name: profile.name.trim() }));
+  const seenProfileNames = new Set<string>();
+  for (const profile of namedProfiles) {
+    if (!profile.name) {
+      throw new Error("outbound profile name cannot be empty");
+    }
+    if (seenProfileNames.has(profile.name)) {
+      throw new Error(`duplicate outbound profile name '${profile.name}'`);
+    }
+    seenProfileNames.add(profile.name);
+  }
 
   const profileRecords = Object.fromEntries(
     namedProfiles.map((profile) => {
@@ -1969,6 +2009,7 @@ function buildNetworkOutboundConfig(
 function createOutboundProfileForm(name = ""): OutboundProfileForm {
   return {
     id: createFormId(),
+    originalName: name,
     name,
     resolverMode: "system",
     ipVersion: "4",
@@ -1977,6 +2018,53 @@ function createOutboundProfileForm(name = ""): OutboundProfileForm {
     socks5: "",
     nameservers: [],
   };
+}
+
+function outboundProfileRenameMap(
+  profiles: OutboundProfileForm[],
+): Map<string, string> {
+  const renameMap = new Map<string, string>();
+  for (const profile of profiles) {
+    const oldName = profile.originalName.trim();
+    const newName = profile.name.trim();
+    if (oldName && newName && oldName !== newName) {
+      renameMap.set(oldName, newName);
+    }
+  }
+  return renameMap;
+}
+
+function rewritePluginOutboundReferences(
+  config: OxiDnsConfig,
+  renameMap: Map<string, string>,
+): OxiDnsConfig {
+  if (renameMap.size === 0) return config;
+  return {
+    ...config,
+    plugins: config.plugins.map((plugin) => ({
+      ...plugin,
+      args: rewriteOutboundReferenceValue(plugin.args, renameMap),
+    })),
+  };
+}
+
+function rewriteOutboundReferenceValue(
+  value: unknown,
+  renameMap: Map<string, string>,
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => rewriteOutboundReferenceValue(item, renameMap));
+  }
+  if (!isPlainObject(value)) return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => {
+      if (key === "outbound" && typeof child === "string") {
+        return [key, renameMap.get(child) ?? child];
+      }
+      return [key, rewriteOutboundReferenceValue(child, renameMap)];
+    }),
+  );
 }
 
 function createOutboundNameserverForm(): OutboundNameserverForm {
@@ -2003,4 +2091,8 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

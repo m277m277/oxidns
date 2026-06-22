@@ -332,7 +332,7 @@ _sequence-step-recording = []
 
 # Shared outbound DNS client protocol stacks used by resolver and upstream.
 _dns-client-dot = ["_tls-client"]
-_dns-client-doh = ["_http-client", "dep:h2"]
+_dns-client-doh = ["_http-client", "_tls-client", "dep:h2"]
 _dns-client-doq = ["dep:quinn", "_tls-client"]
 _dns-client-doh3 = ["_dns-client-doh", "dep:h3", "dep:h3-quinn", "dep:quinn"]
 
