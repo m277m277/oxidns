@@ -431,7 +431,7 @@ export default function SettingsPage() {
       const removed = profiles.find((profile) => profile.id === id);
       const nextProfiles = profiles.filter((profile) => profile.id !== id);
       if (removed && outboundDefault === removed.name) {
-        setOutboundDefault(nextProfiles[0]?.name ?? "");
+        setOutboundDefault("");
       }
       return nextProfiles;
     });

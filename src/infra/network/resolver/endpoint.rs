@@ -145,10 +145,14 @@ fn parse_nameserver_endpoint(addr: &str) -> Result<ParsedNameserverEndpoint> {
     };
     let url = Url::parse(candidate)
         .map_err(|err| DnsError::config(format!("invalid nameserver addr '{}': {}", raw, err)))?;
-    let host = url
-        .host_str()
+    let host = match url
+        .host()
         .ok_or_else(|| DnsError::config(format!("invalid nameserver addr '{}': no host", raw)))?
-        .to_string();
+    {
+        url::Host::Domain(domain) => domain.to_string(),
+        url::Host::Ipv4(ip) => ip.to_string(),
+        url::Host::Ipv6(ip) => ip.to_string(),
+    };
     let protocol = match url.scheme() {
         "udp" => NameserverProtocol::Udp,
         "tcp" | "tcp+pipeline" => NameserverProtocol::Tcp,
@@ -261,6 +265,25 @@ mod tests {
         assert_eq!(
             config.remote_ip,
             Some(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 53)))
+        );
+    }
+
+    #[test]
+    fn test_nameserver_config_stores_ipv6_literal_without_brackets() {
+        let config = NameserverConfig::new(
+            "https://[2001:4860:4860::8888]/dns-query",
+            None,
+            Duration::from_secs(1),
+            None,
+        )
+        .expect("config should build");
+
+        assert_eq!(config.host, "2001:4860:4860::8888");
+        assert_eq!(
+            config.remote_ip,
+            Some(IpAddr::V6(
+                "2001:4860:4860::8888".parse().expect("IPv6 should parse")
+            ))
         );
     }
 }

@@ -72,6 +72,7 @@ fn install_outbound_from_config(context: &CliPathContext) -> Result<()> {
     match read_upgrade_runtime_config(config_path) {
         Ok(config) => {
             if let Some(network) = config.network {
+                network.outbound.validate()?;
                 outbound::install_global(&network.outbound)?;
             } else {
                 outbound::clear_global();
@@ -618,5 +619,39 @@ api:
         let config = config_from_options_with_path_defaults(&opts, &defaults).unwrap();
 
         assert_eq!(config.webui_dir, service_working_dir.join("webui"));
+    }
+
+    #[cfg(feature = "_http-client")]
+    #[test]
+    fn config_from_options_validates_outbound_before_upgrade_install() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let config_path = tmp.path().join("config.yaml");
+        fs::write(
+            &config_path,
+            br#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          nameservers:
+            - addr: tls://dns.google:853
+"#,
+        )
+        .unwrap();
+        let cli = Cli::parse_from(["oxidns", "upgrade", "-c", config_path.to_str().unwrap()]);
+        let Command::Upgrade(opts) = cli.command else {
+            panic!("expected upgrade command");
+        };
+        let defaults = CliPathDefaults {
+            current_dir: tmp.path().to_path_buf(),
+            service_config: None,
+            service_working_dir: None,
+        };
+
+        let err = config_from_options_with_path_defaults(&opts, &defaults)
+            .expect_err("invalid outbound config should fail");
+
+        assert!(err.to_string().contains("Invalid network outbound config"));
     }
 }

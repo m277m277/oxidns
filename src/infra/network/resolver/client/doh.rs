@@ -166,13 +166,23 @@ pub(super) fn doh_request_uri(config: &NameserverConfig) -> String {
     } else {
         config.path.as_str()
     };
+    let host = doh_uri_host(config.host.as_str());
     let mut uri = if config.port != NameserverProtocol::DoH.default_port() {
-        format!("https://{}:{}{}?dns=", config.host, config.port, path)
+        format!("https://{}:{}{}?dns=", host, config.port, path)
     } else {
-        format!("https://{}{}?dns=", config.host, path)
+        format!("https://{}{}?dns=", host, path)
     };
     uri.reserve(512);
     uri
+}
+
+#[cfg(feature = "resolver-doh")]
+fn doh_uri_host(host: &str) -> String {
+    if host.parse::<std::net::Ipv6Addr>().is_ok() {
+        format!("[{host}]")
+    } else {
+        host.to_string()
+    }
 }
 
 #[cfg(feature = "resolver-doh")]
@@ -238,6 +248,15 @@ mod tests {
         let uri = doh_request_uri(&config);
 
         assert!(uri.starts_with("https://[2001:4860:4860::8888]/dns-query?dns="));
+    }
+
+    #[test]
+    fn test_doh_uri_host_brackets_ipv6_literals() {
+        assert_eq!(
+            doh_uri_host("2001:4860:4860::8888"),
+            "[2001:4860:4860::8888]"
+        );
+        assert_eq!(doh_uri_host("dns.example"), "dns.example");
     }
 
     #[test]

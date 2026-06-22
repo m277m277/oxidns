@@ -221,6 +221,12 @@ fn resolver_from_nameservers(
         None => DEFAULT_BOOTSTRAP_TIMEOUT,
     };
     let use_profile_proxy = matches!(config.proxy, Some(OutboundResolverProxyConfig::Profile));
+    if use_profile_proxy && profile_proxy.socks5().is_none() {
+        return Err(DnsError::config(format!(
+            "network.outbound profile '{}' resolver.proxy profile requires a socks5 proxy",
+            name
+        )));
+    }
     let socks5 = use_profile_proxy.then(|| profile_proxy.socks5()).flatten();
     let nameservers = config
         .nameservers

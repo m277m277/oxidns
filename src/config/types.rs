@@ -198,7 +198,7 @@ pub struct NetworkOutboundConfig {
 }
 
 impl NetworkOutboundConfig {
-    fn validate(&self) -> Result<(), ConfigError> {
+    pub(crate) fn validate(&self) -> Result<(), ConfigError> {
         if let Some(default) = self.default.as_deref() {
             if default.trim().is_empty() {
                 return Err(ConfigError::InvalidNetworkOutbound(
@@ -225,6 +225,12 @@ impl NetworkOutboundConfig {
                     "profile name cannot be empty".to_string(),
                 ));
             }
+            if name != name.trim() {
+                return Err(ConfigError::InvalidNetworkOutbound(format!(
+                    "profile name '{}' cannot contain leading or trailing whitespace",
+                    name
+                )));
+            }
             profile.validate(name)?;
         }
         Ok(())
@@ -247,7 +253,27 @@ impl OutboundProfileConfig {
         if let Some(proxy) = &self.proxy {
             proxy.validate(profile_name)?;
         }
+        if self.resolver_uses_profile_proxy()
+            && !matches!(self.proxy, Some(OutboundProxyConfig::Socks5 { .. }))
+        {
+            return Err(ConfigError::InvalidNetworkOutbound(format!(
+                "profile '{}' resolver.proxy profile requires a socks5 proxy",
+                profile_name
+            )));
+        }
         Ok(())
+    }
+
+    fn resolver_uses_profile_proxy(&self) -> bool {
+        matches!(
+            self.resolver,
+            Some(OutboundResolverConfig::Nameservers(
+                OutboundResolverDetailedConfig {
+                    proxy: Some(OutboundResolverProxyConfig::Profile),
+                    ..
+                }
+            ))
+        )
     }
 }
 
@@ -868,6 +894,53 @@ plugins:
         let err = config
             .validate()
             .expect_err("padded outbound default profile should fail");
+        assert!(matches!(err, ConfigError::InvalidNetworkOutbound(_)));
+    }
+
+    #[test]
+    fn test_validate_rejects_padded_outbound_profile_name() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      " oversea ":
+        resolver: system
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("padded outbound profile name should fail");
+        assert!(matches!(err, ConfigError::InvalidNetworkOutbound(_)));
+    }
+
+    #[test]
+    fn test_validate_rejects_profile_resolver_proxy_without_socks5() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          nameservers:
+            - addr: tcp://1.1.1.1:53
+          proxy: profile
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("profile resolver proxy without socks5 should fail");
         assert!(matches!(err, ConfigError::InvalidNetworkOutbound(_)));
     }
 
