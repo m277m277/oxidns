@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
 use crate::infra::error::{DnsError, Result};
-use crate::infra::network::resolver::BootstrapResolver;
+use crate::infra::network::resolver::NameResolver;
 use crate::infra::network::upstream::builder::{
     main_pool_min_conns, pipeline_request_map_capacity, reuse_request_map_capacity,
 };
@@ -367,7 +367,7 @@ pub(crate) struct BootstrapUpstream<C: Connection> {
     /// Connection metadata (includes bootstrap config)
     connection_info: ConnectionInfo,
     /// Bootstrap resolver for domain name resolution
-    bootstrap: Arc<BootstrapResolver>,
+    bootstrap: Arc<NameResolver>,
     /// Lock-free connection pool with current resolved IP
     /// Tuple: (current_ip, connection_pool)
     pool: ArcSwap<(Option<IpAddr>, Arc<dyn ConnectionPool<C>>)>,

@@ -11,8 +11,9 @@ use tracing::{debug, warn};
 use url::Url;
 
 use crate::infra::error::{DnsError, Result};
+use crate::infra::network::outbound;
 use crate::infra::network::proxy::{Socks5Opt, parse_socks5_opt};
-use crate::infra::network::resolver::BootstrapResolver;
+use crate::infra::network::resolver::NameResolver;
 use crate::infra::system::deserialize_duration_option;
 
 /// Supported upstream connection types
@@ -83,6 +84,13 @@ pub struct UpstreamConfig {
     /// - `quic://dns.adguard.com:853` - DNS over QUIC (DoQ)
     /// - `https://dns.google.com/dns-query` - DNS over HTTPS (DoH)
     pub addr: String,
+
+    /// Optional named outbound profile to supply resolver/proxy defaults.
+    ///
+    /// Local upstream fields keep precedence: `dial_addr` bypasses resolver
+    /// injection, `bootstrap` overrides the profile resolver, and `socks5`
+    /// overrides the profile proxy.
+    pub outbound: Option<String>,
 
     /// Direct IP address to use for connection (bypasses DNS resolution)
     ///
@@ -253,7 +261,7 @@ pub struct ConnectionInfo {
     pub socks5: Option<Socks5Opt>,
 
     /// Bootstrap resolver for dynamic hostname resolution with TTL caching
-    pub(crate) bootstrap: Option<Arc<BootstrapResolver>>,
+    pub(crate) bootstrap: Option<Arc<NameResolver>>,
 
     /// DoH request path (e.g., `/dns-query`), empty for non-HTTP protocols
     pub path: String,
@@ -350,6 +358,7 @@ impl TryFrom<UpstreamConfig> for ConnectionInfo {
         let UpstreamConfig {
             tag,
             addr,
+            outbound: outbound_ref,
             dial_addr,
             port: config_port,
             bootstrap,
@@ -420,6 +429,16 @@ impl TryFrom<UpstreamConfig> for ConnectionInfo {
             connection_type, &host, port, path
         );
 
+        let outbound_policy = match outbound_ref.as_deref().map(str::trim) {
+            Some("") => {
+                return Err(DnsError::plugin(
+                    "upstream outbound profile cannot be empty",
+                ));
+            }
+            Some(name) => Some(outbound::global().resolve_policy(Some(name), None)?),
+            None => None,
+        };
+
         let dial_addr_configured = dial_addr.is_some();
         let remote_ip = static_remote_ip_from_host(&host, dial_addr);
 
@@ -430,26 +449,35 @@ impl TryFrom<UpstreamConfig> for ConnectionInfo {
             );
         }
 
-        let bootstrap = if let Some(bootstrap_server) = bootstrap
-            && remote_ip.is_none()
-        {
-            Some(Arc::new(BootstrapResolver::new(
-                vec![bootstrap_server],
-                bootstrap_version,
-            )?))
+        let bootstrap = if remote_ip.is_none() {
+            if let Some(bootstrap_server) = bootstrap {
+                Some(Arc::new(NameResolver::new(
+                    vec![bootstrap_server],
+                    bootstrap_version,
+                )?))
+            } else {
+                outbound_policy
+                    .as_ref()
+                    .and_then(|policy| policy.resolver())
+            }
         } else {
             None
         };
 
-        let socks5 = if let Some(socks5_str) = socks5 {
+        let raw_socks5 = if let Some(socks5_str) = socks5.as_deref() {
+            parse_socks5_opt(socks5_str)
+        } else {
+            outbound_policy.as_ref().and_then(|policy| policy.proxy())
+        };
+        let socks5 = if let Some(socks5_opt) = raw_socks5 {
             match connection_type {
-                ConnectionType::TCP | ConnectionType::DoT => parse_socks5_opt(&socks5_str),
+                ConnectionType::TCP | ConnectionType::DoT => Some(socks5_opt),
                 ConnectionType::DoH => {
                     if enable_http3 {
                         warn!("Sock5 proxy only support tcp portal");
                         None
                     } else {
-                        parse_socks5_opt(&socks5_str)
+                        Some(socks5_opt)
                     }
                 }
                 _ => {

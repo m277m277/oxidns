@@ -13,20 +13,20 @@ use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs, UdpSocket};
 #[cfg(any(
     feature = "_tls-client",
-    feature = "upstream-doq",
-    feature = "upstream-doh3"
+    feature = "_dns-client-doq",
+    feature = "_dns-client-doh3"
 ))]
 use std::sync::Arc;
 #[cfg(any(
     feature = "_tls-client",
-    feature = "upstream-doq",
-    feature = "upstream-doh3"
+    feature = "_dns-client-doq",
+    feature = "_dns-client-doh3"
 ))]
 use std::time::Duration;
 
-#[cfg(any(feature = "upstream-doq", feature = "upstream-doh3"))]
+#[cfg(any(feature = "_dns-client-doq", feature = "_dns-client-doh3"))]
 use quinn::crypto::rustls::QuicClientConfig;
-#[cfg(any(feature = "upstream-doq", feature = "upstream-doh3"))]
+#[cfg(any(feature = "_dns-client-doq", feature = "_dns-client-doh3"))]
 use quinn::{ClientConfig, Endpoint, EndpointConfig, TokioRuntime, TransportConfig, VarInt};
 #[cfg(feature = "_tls-client")]
 use rustls::pki_types::ServerName;
@@ -34,8 +34,8 @@ use socket2::{Domain, Protocol, Socket, Type};
 use tokio::net::TcpStream;
 #[cfg(any(
     feature = "_tls-client",
-    feature = "upstream-doq",
-    feature = "upstream-doh3"
+    feature = "_dns-client-doq",
+    feature = "_dns-client-doh3"
 ))]
 use tokio::time::timeout;
 #[cfg(feature = "_tls-client")]
@@ -95,8 +95,8 @@ impl DialTarget {
 
     #[cfg(any(
         feature = "_tls-client",
-        feature = "upstream-doq",
-        feature = "upstream-doh3"
+        feature = "_dns-client-doq",
+        feature = "_dns-client-doh3"
     ))]
     fn server_name(&self) -> &str {
         self.host.as_str()
@@ -173,6 +173,7 @@ pub(crate) struct TlsDialOptions {
 }
 
 #[cfg(feature = "_tls-client")]
+#[allow(dead_code)]
 impl TlsDialOptions {
     pub(crate) fn new(
         target: DialTarget,
@@ -189,7 +190,7 @@ impl TlsDialOptions {
     }
 }
 
-#[cfg(any(feature = "upstream-doq", feature = "upstream-doh3"))]
+#[cfg(any(feature = "_dns-client-doq", feature = "_dns-client-doh3"))]
 #[derive(Clone, Debug)]
 pub(crate) struct QuicDialOptions {
     target: DialTarget,
@@ -199,7 +200,7 @@ pub(crate) struct QuicDialOptions {
     alpn: Vec<Vec<u8>>,
 }
 
-#[cfg(any(feature = "upstream-doq", feature = "upstream-doh3"))]
+#[cfg(any(feature = "_dns-client-doq", feature = "_dns-client-doh3"))]
 impl QuicDialOptions {
     pub(crate) fn new(
         target: DialTarget,
@@ -286,7 +287,7 @@ pub(crate) async fn connect_tls(
 /// # Security Warning
 /// Setting `skip_cert` to true disables certificate validation. Only use for
 /// testing!
-#[cfg(any(feature = "upstream-doq", feature = "upstream-doh3"))]
+#[cfg(any(feature = "_dns-client-doq", feature = "_dns-client-doh3"))]
 pub(crate) async fn connect_quic(
     udp_socket: UdpSocket,
     options: QuicDialOptions,

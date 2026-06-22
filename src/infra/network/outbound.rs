@@ -6,7 +6,7 @@
 //! Outbound profiles describe how process-owned clients connect to external
 //! services: which resolver to use and whether a proxy is involved. Callers
 //! such as the shared HTTP client consume the resolved runtime policy instead
-//! of parsing SOCKS5 or bootstrap DNS settings on their own.
+//! of parsing SOCKS5 or nameserver settings on their own.
 
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -14,12 +14,14 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use crate::config::types::{
-    NetworkOutboundConfig, OutboundProfileConfig, OutboundProxyConfig, OutboundResolverConfig,
+    NetworkOutboundConfig, OutboundNameserverConfig, OutboundProfileConfig, OutboundProxyConfig,
+    OutboundResolverConfig, OutboundResolverDetailedConfig, OutboundResolverProxyConfig,
 };
 use crate::infra::error::{DnsError, Result};
 use crate::infra::network::deadline::QueryDeadline;
 use crate::infra::network::proxy::{Socks5Opt, parse_socks5_opt};
-use crate::infra::network::resolver::BootstrapResolver;
+use crate::infra::network::resolver::{NameResolver, NameserverConfig};
+use crate::infra::system::parse_simple_duration;
 
 const DEFAULT_BOOTSTRAP_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -38,12 +40,17 @@ impl OutboundPolicy {
     }
 
     pub(crate) fn proxy(&self) -> Option<Socks5Opt> {
-        match &self.proxy {
-            ProxyPolicy::Direct => None,
-            ProxyPolicy::Socks5(socks5) => Some(socks5.clone()),
+        self.proxy.socks5()
+    }
+
+    pub(crate) fn resolver(&self) -> Option<Arc<NameResolver>> {
+        match &self.resolver {
+            ResolverPolicy::System => None,
+            ResolverPolicy::Bootstrap { resolver, .. } => Some(resolver.clone()),
         }
     }
 
+    #[cfg_attr(not(feature = "_http-client"), allow(dead_code))]
     pub(crate) async fn resolve_host(&self, host: &str, port: u16) -> Result<IpAddr> {
         self.resolver.resolve_host(host, port).await
     }
@@ -63,17 +70,20 @@ impl Default for OutboundPolicy {
 #[derive(Debug, Clone)]
 enum ResolverPolicy {
     System,
-    Bootstrap(Arc<BootstrapResolver>),
+    Bootstrap {
+        resolver: Arc<NameResolver>,
+        #[cfg_attr(not(feature = "_http-client"), allow(dead_code))]
+        timeout: Duration,
+    },
 }
 
 impl ResolverPolicy {
+    #[cfg_attr(not(feature = "_http-client"), allow(dead_code))]
     async fn resolve_host(&self, host: &str, port: u16) -> Result<IpAddr> {
         match self {
             Self::System => resolve_system(host, port).await,
-            Self::Bootstrap(resolver) => {
-                resolver
-                    .resolve(host, QueryDeadline::new(DEFAULT_BOOTSTRAP_TIMEOUT))
-                    .await
+            Self::Bootstrap { resolver, timeout } => {
+                resolver.resolve(host, QueryDeadline::new(*timeout)).await
             }
         }
     }
@@ -88,6 +98,13 @@ enum ProxyPolicy {
 impl ProxyPolicy {
     fn from_socks5(socks5: Option<Socks5Opt>) -> Self {
         socks5.map_or(Self::Direct, Self::Socks5)
+    }
+
+    fn socks5(&self) -> Option<Socks5Opt> {
+        match self {
+            Self::Direct => None,
+            Self::Socks5(socks5) => Some(socks5.clone()),
+        }
     }
 }
 
@@ -142,6 +159,7 @@ impl OutboundRuntime {
 }
 
 fn policy_from_profile(name: &str, profile: &OutboundProfileConfig) -> Result<OutboundPolicy> {
+    let proxy = proxy_from_profile(name, profile)?;
     let resolver = match &profile.resolver {
         Some(OutboundResolverConfig::Mode(mode)) if mode.trim().eq_ignore_ascii_case("system") => {
             ResolverPolicy::System
@@ -152,25 +170,16 @@ fn policy_from_profile(name: &str, profile: &OutboundProfileConfig) -> Result<Ou
                 name, mode
             )));
         }
-        Some(OutboundResolverConfig::Bootstrap {
-            bootstrap,
-            bootstrap_version,
-        }) => {
-            let servers = bootstrap
-                .servers()
-                .into_iter()
-                .map(str::trim)
-                .filter(|server| !server.is_empty())
-                .map(ToString::to_string)
-                .collect::<Vec<_>>();
-            ResolverPolicy::Bootstrap(Arc::new(BootstrapResolver::new(
-                servers,
-                *bootstrap_version,
-            )?))
+        Some(OutboundResolverConfig::Nameservers(config)) => {
+            resolver_from_nameservers(name, config, &proxy)?
         }
         None => ResolverPolicy::System,
     };
 
+    Ok(OutboundPolicy { resolver, proxy })
+}
+
+fn proxy_from_profile(name: &str, profile: &OutboundProfileConfig) -> Result<ProxyPolicy> {
     let proxy = match &profile.proxy {
         Some(OutboundProxyConfig::Mode(mode))
             if mode.trim().eq_ignore_ascii_case("none")
@@ -194,10 +203,53 @@ fn policy_from_profile(name: &str, profile: &OutboundProfileConfig) -> Result<Ou
         }
         None => ProxyPolicy::Direct,
     };
-
-    Ok(OutboundPolicy { resolver, proxy })
+    Ok(proxy)
 }
 
+fn resolver_from_nameservers(
+    name: &str,
+    config: &OutboundResolverDetailedConfig,
+    profile_proxy: &ProxyPolicy,
+) -> Result<ResolverPolicy> {
+    let timeout = match config.timeout.as_deref() {
+        Some(raw) => parse_simple_duration(raw).map_err(|err| {
+            DnsError::config(format!(
+                "network.outbound profile '{}' resolver.timeout is invalid: {}",
+                name, err
+            ))
+        })?,
+        None => DEFAULT_BOOTSTRAP_TIMEOUT,
+    };
+    let use_profile_proxy = matches!(config.proxy, Some(OutboundResolverProxyConfig::Profile));
+    let socks5 = use_profile_proxy.then(|| profile_proxy.socks5()).flatten();
+    let nameservers = config
+        .nameservers
+        .iter()
+        .map(|nameserver| nameserver_config(nameserver, timeout, socks5.clone()))
+        .collect::<Result<Vec<_>>>()?;
+    Ok(ResolverPolicy::Bootstrap {
+        resolver: Arc::new(NameResolver::from_nameserver_configs(
+            nameservers,
+            config.ip_version,
+        )?),
+        timeout,
+    })
+}
+
+fn nameserver_config(
+    nameserver: &OutboundNameserverConfig,
+    timeout: Duration,
+    socks5: Option<Socks5Opt>,
+) -> Result<NameserverConfig> {
+    NameserverConfig::new(
+        nameserver.addr.clone(),
+        nameserver.dial_addr,
+        timeout,
+        socks5,
+    )
+}
+
+#[cfg_attr(not(feature = "_http-client"), allow(dead_code))]
 async fn resolve_system(host: &str, port: u16) -> Result<IpAddr> {
     let mut addrs = tokio::net::lookup_host((host, port)).await.map_err(|err| {
         DnsError::protocol(format!(
@@ -239,7 +291,7 @@ pub(crate) fn global() -> Arc<OutboundRuntime> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::types::{BootstrapServerConfig, NetworkOutboundConfig};
+    use crate::config::types::{NetworkOutboundConfig, OutboundResolverDetailedConfig};
 
     #[test]
     fn test_resolve_policy_defaults_to_direct_system() {
@@ -257,10 +309,17 @@ mod tests {
             profiles: HashMap::from([(
                 "oversea".to_string(),
                 OutboundProfileConfig {
-                    resolver: Some(OutboundResolverConfig::Bootstrap {
-                        bootstrap: BootstrapServerConfig::One("1.1.1.1:53".to_string()),
-                        bootstrap_version: Some(4),
-                    }),
+                    resolver: Some(OutboundResolverConfig::Nameservers(
+                        OutboundResolverDetailedConfig {
+                            nameservers: vec![OutboundNameserverConfig {
+                                addr: "1.1.1.1:53".to_string(),
+                                dial_addr: None,
+                            }],
+                            ip_version: Some(4),
+                            timeout: None,
+                            proxy: None,
+                        },
+                    )),
                     proxy: Some(OutboundProxyConfig::Socks5 {
                         socks5: "127.0.0.1:1080".to_string(),
                     }),

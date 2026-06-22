@@ -6,6 +6,7 @@
 //! Defines the schema for OxiDNS configuration files (YAML format).
 
 use std::collections::HashMap;
+use std::net::IpAddr;
 
 use serde::Deserialize;
 use serde_yaml_ng::Value;
@@ -247,10 +248,7 @@ impl OutboundProfileConfig {
 #[serde(untagged)]
 pub enum OutboundResolverConfig {
     Mode(String),
-    Bootstrap {
-        bootstrap: BootstrapServerConfig,
-        bootstrap_version: Option<u8>,
-    },
+    Nameservers(OutboundResolverDetailedConfig),
 }
 
 impl OutboundResolverConfig {
@@ -261,30 +259,131 @@ impl OutboundResolverConfig {
                 "profile '{}' has invalid resolver mode '{}'",
                 profile_name, mode
             ))),
-            Self::Bootstrap {
-                bootstrap,
-                bootstrap_version,
-            } => {
-                let servers = bootstrap.servers();
-                if servers.is_empty() || servers.iter().any(|server| server.trim().is_empty()) {
-                    return Err(ConfigError::InvalidNetworkOutbound(format!(
-                        "profile '{}' bootstrap resolver requires at least one server",
-                        profile_name
-                    )));
-                }
-                if !matches!(bootstrap_version, None | Some(4) | Some(6)) {
-                    return Err(ConfigError::InvalidNetworkOutbound(format!(
-                        "profile '{}' bootstrap_version must be 4 or 6",
-                        profile_name
-                    )));
-                }
-                Ok(())
-            }
+            Self::Nameservers(config) => config.validate(profile_name),
         }
     }
 }
 
-/// One or more bootstrap DNS servers.
+/// Detailed resolver policy for an outbound profile.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OutboundResolverDetailedConfig {
+    pub nameservers: Vec<OutboundNameserverConfig>,
+    pub ip_version: Option<u8>,
+    pub timeout: Option<String>,
+    pub proxy: Option<OutboundResolverProxyConfig>,
+}
+
+impl OutboundResolverDetailedConfig {
+    fn validate(&self, profile_name: &str) -> Result<(), ConfigError> {
+        if self.nameservers.is_empty() {
+            return Err(ConfigError::InvalidNetworkOutbound(format!(
+                "profile '{}' resolver.nameservers requires at least one server",
+                profile_name
+            )));
+        }
+        if !matches!(self.ip_version, None | Some(4) | Some(6)) {
+            return Err(ConfigError::InvalidNetworkOutbound(format!(
+                "profile '{}' resolver.ip_version must be 4 or 6",
+                profile_name
+            )));
+        }
+
+        let resolver_uses_profile_proxy = matches!(
+            self.proxy
+                .as_ref()
+                .unwrap_or(&OutboundResolverProxyConfig::None),
+            OutboundResolverProxyConfig::Profile
+        );
+        for nameserver in &self.nameservers {
+            nameserver.validate(profile_name, resolver_uses_profile_proxy)?;
+        }
+        Ok(())
+    }
+}
+
+/// One outbound resolver nameserver endpoint.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OutboundNameserverConfig {
+    pub addr: String,
+    pub dial_addr: Option<IpAddr>,
+}
+
+impl OutboundNameserverConfig {
+    fn validate(
+        &self,
+        profile_name: &str,
+        resolver_uses_profile_proxy: bool,
+    ) -> Result<(), ConfigError> {
+        if self.addr.trim().is_empty() {
+            return Err(ConfigError::InvalidNetworkOutbound(format!(
+                "profile '{}' resolver.nameservers addr cannot be empty",
+                profile_name
+            )));
+        }
+
+        let parsed = parse_nameserver_addr(self.addr.as_str()).ok_or_else(|| {
+            ConfigError::InvalidNetworkOutbound(format!(
+                "profile '{}' resolver.nameservers has invalid addr '{}'",
+                profile_name, self.addr
+            ))
+        })?;
+
+        if parsed.host.parse::<IpAddr>().is_err() && self.dial_addr.is_none() {
+            return Err(ConfigError::InvalidNetworkOutbound(format!(
+                "profile '{}' resolver.nameservers domain addr '{}' requires dial_addr",
+                profile_name, self.addr
+            )));
+        }
+
+        if resolver_uses_profile_proxy && parsed.proxy_unsupported {
+            return Err(ConfigError::InvalidNetworkOutbound(format!(
+                "profile '{}' resolver proxy cannot be used with {} nameserver '{}'",
+                profile_name, parsed.scheme, self.addr
+            )));
+        }
+
+        Ok(())
+    }
+}
+
+struct ParsedNameserverAddr {
+    scheme: String,
+    host: String,
+    proxy_unsupported: bool,
+}
+
+fn parse_nameserver_addr(addr: &str) -> Option<ParsedNameserverAddr> {
+    let raw = addr.trim();
+    let normalized;
+    let candidate = if raw.contains("//") {
+        raw
+    } else {
+        normalized = format!("udp://{raw}");
+        normalized.as_str()
+    };
+    let url = url::Url::parse(candidate).ok()?;
+    let host = url.host_str()?.to_string();
+    let scheme = url.scheme().to_ascii_lowercase();
+    let proxy_unsupported = matches!(scheme.as_str(), "udp" | "doq" | "quic" | "h3");
+    Some(ParsedNameserverAddr {
+        scheme,
+        host,
+        proxy_unsupported,
+    })
+}
+
+/// Resolver proxy policy for outbound profile nameservers.
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum OutboundResolverProxyConfig {
+    #[default]
+    None,
+    Profile,
+}
+
+/// One or more legacy upstream bootstrap DNS servers.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum BootstrapServerConfig {
@@ -688,10 +787,10 @@ network:
     profiles:
       oversea:
         resolver:
-          bootstrap:
-            - 1.1.1.1:53
-            - 8.8.8.8:53
-          bootstrap_version: 4
+          nameservers:
+            - addr: 1.1.1.1:53
+            - addr: 8.8.8.8:53
+          ip_version: 4
         proxy:
           socks5: 127.0.0.1:1080
 plugins:
@@ -702,6 +801,78 @@ plugins:
         .expect("config should deserialize");
 
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_rejects_outbound_resolver_bootstrap() {
+        let err = serde_yaml_ng::from_str::<Config>(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          bootstrap:
+            - 1.1.1.1:53
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect_err("outbound resolver.bootstrap should not deserialize");
+
+        assert!(!err.to_string().is_empty());
+    }
+
+    #[test]
+    fn test_validate_rejects_domain_nameserver_without_dial_addr() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          nameservers:
+            - addr: tls://dns.google:853
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("domain nameserver without dial_addr should fail");
+        assert!(matches!(err, ConfigError::InvalidNetworkOutbound(_)));
+    }
+
+    #[test]
+    fn test_validate_rejects_profile_proxy_with_doq_nameserver() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          nameservers:
+            - addr: doq://94.140.14.14:853
+          proxy: profile
+        proxy:
+          socks5: 127.0.0.1:1080
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("DoQ nameserver cannot use profile proxy");
+        assert!(matches!(err, ConfigError::InvalidNetworkOutbound(_)));
     }
 
     #[test]

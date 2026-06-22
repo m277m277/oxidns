@@ -181,7 +181,7 @@ log:
 
 ### `network`
 
-`network.outbound` 用于集中管理项目内部 HTTP client 的出站策略。未配置时保持兼容行为：使用系统 DNS 解析，直连目标地址。
+`network.outbound` 用于集中管理项目内部 HTTP client 与显式接入的 upstream 出站策略。未配置时保持兼容行为：HTTP client 使用系统 DNS 解析并直连目标地址，upstream 保持自身配置。
 
 ```yaml
 network:
@@ -193,10 +193,15 @@ network:
         proxy: none
       oversea:
         resolver:
-          bootstrap:
-            - 1.1.1.1:53
-            - 8.8.8.8:53
-          bootstrap_version: 4
+          nameservers:
+            - addr: "1.1.1.1:53"
+            - addr: "tls://dns.google:853"
+              dial_addr: 8.8.8.8
+            - addr: "https://cloudflare-dns.com/dns-query"
+              dial_addr: 1.1.1.1
+          ip_version: 4
+          timeout: 5s
+          proxy: none
         proxy:
           socks5: 127.0.0.1:1080
 ```
@@ -209,13 +214,17 @@ network:
   - 限制：如果配置，必须引用 `profiles` 中存在的名称。
 - `outbound.profiles.<name>.resolver`
   - `system`：使用系统 DNS。HTTP client 中该解析是异步执行，不会阻塞运行时工作线程。
-  - `bootstrap`：使用指定 DNS bootstrap 服务器解析 HTTP 目标域名，适合系统 DNS 指回 OxiDNS 自身、但下载或升级又必须访问外网的场景。
-  - `bootstrap_version`：可选，`4` 查询 A 记录，`6` 查询 AAAA 记录；未配置时默认 IPv4。
+  - `nameservers`：使用指定 DNS nameserver 解析目标域名。支持 `udp://`、`tcp://`、`tls://`、`https://`、`doh://`、`h3://`、`quic://`、`doq://`；未写协议时按 UDP 处理。
+  - 协议 feature：UDP/TCP 总是可用；DoT 需要 `resolver-dot`，DoH 需要 `resolver-doh`，DoQ 需要 `resolver-doq`，DoH3 需要 `resolver-doh3`。旧的 `upstream-*` feature 仍会启用共享 DNS client 依赖以兼容既有构建脚本，但新配置建议显式启用 `resolver-*`。
+  - `ip_version`：可选，`4` 查询 A 记录，`6` 查询 AAAA 记录；未配置时默认 IPv4。
+  - `timeout`：可选，resolver 查询超时，默认 `5s`。
+  - `proxy`：可选，`none` 表示 nameserver 直连，`profile` 表示 TCP/DoT/DoH nameserver 复用当前 profile 的 SOCKS5。UDP/DoQ/DoH3 nameserver 不支持 SOCKS5。
+  - 域名型 nameserver 必须配置 `dial_addr`，`addr` 中的域名用于 SNI/证书校验，`dial_addr` 用于实际连接，避免 resolver 解析自身。
 - `outbound.profiles.<name>.proxy`
   - `none` 或 `direct`：直连。
   - `socks5`：通过 SOCKS5 代理连接目标地址，格式与上游 `socks5` 一致。
 
-当前 `download`、`upgrade`、`http_request` 可通过 `args.outbound: oversea` 引用 profile。旧字段 `socks5` 继续兼容；当同一个插件同时配置 `outbound` 和 `socks5` 时，`socks5` 会覆盖 profile 中的代理设置，但 resolver 仍来自该 outbound profile。
+当前 `download`、`upgrade`、`http_request` 可通过 `args.outbound: oversea` 引用 profile。旧字段 `socks5` 继续兼容；当同一个插件同时配置 `outbound` 和 `socks5` 时，`socks5` 会覆盖 profile 中的代理设置，但 resolver 仍来自该 outbound profile。`forward` upstream 也可通过 `outbound: oversea` 显式接入 profile；upstream 本地 `dial_addr`、`bootstrap`、`socks5` 优先于 profile 注入值。
 
 ### `api`
 
@@ -614,6 +623,7 @@ args:
 upstreams:
   - addr: "udp://1.1.1.1:53"
   - addr: "https://resolver.example/dns-query"
+    outbound: oversea
     bootstrap: "8.8.8.8:53"
     timeout: 5s
     enable_http3: true
@@ -630,6 +640,9 @@ upstreams:
   - 指定实际连接 IP，但仍保留 `addr` 中的主机名用于 SNI/校验。
 - `port`
   - 覆盖端口。
+- `outbound`
+  - 引用 `network.outbound.profiles` 中的 profile，为该 upstream 注入 resolver/proxy 默认值。
+  - upstream 本地 `dial_addr`、`bootstrap`、`socks5` 优先于 profile。
 - `bootstrap`
   - 当上游地址是域名时，用于解析上游域名的引导 DNS，必须写为 `IP:port`。
 - `bootstrap_version`

@@ -15,7 +15,6 @@ use super::{
 use crate::config::types::Config;
 use crate::infra::control::{AppController, ControlRequestError};
 use crate::infra::error::{DnsError, Result};
-#[cfg(feature = "_http-client")]
 use crate::infra::network::outbound;
 
 #[cfg(debug_assertions)]
@@ -71,7 +70,6 @@ impl PluginRuntimeManager {
             None
         };
         let _guard = self.lifecycle.lock().await;
-        #[cfg(feature = "_http-client")]
         outbound::install_global(&config.network.outbound)?;
 
         let mut candidate = PluginRegistry::new();
@@ -81,7 +79,6 @@ impl PluginRuntimeManager {
         let candidate = Arc::new(candidate);
         if let Err(err) = candidate.clone().init_plugins(config.plugins).await {
             candidate.destroy().await;
-            #[cfg(feature = "_http-client")]
             outbound::clear_global();
             return Err(err);
         }
@@ -102,7 +99,6 @@ impl PluginRuntimeManager {
         if let Some(previous) = previous {
             previous.destroy().await;
         }
-        #[cfg(feature = "_http-client")]
         outbound::clear_global();
     }
 

@@ -3,6 +3,11 @@
 
 //! Shared name resolution helpers for outbound network clients.
 
-mod bootstrap;
+mod cache;
+mod client;
+mod endpoint;
+mod name;
+mod query;
 
-pub(crate) use bootstrap::BootstrapResolver;
+pub(crate) use endpoint::NameserverConfig;
+pub(crate) use name::NameResolver;

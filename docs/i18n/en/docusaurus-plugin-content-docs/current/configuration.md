@@ -180,7 +180,7 @@ Field notes:
 
 ### `network`
 
-`network.outbound` centralizes outbound policy for internal HTTP clients. When omitted, behavior stays compatible: system DNS resolution and direct connections.
+`network.outbound` centralizes outbound policy for internal HTTP clients and upstreams that opt in. When omitted, behavior stays compatible: HTTP clients use system DNS with direct connections, and upstreams keep their own settings.
 
 ```yaml
 network:
@@ -192,10 +192,15 @@ network:
         proxy: none
       oversea:
         resolver:
-          bootstrap:
-            - 1.1.1.1:53
-            - 8.8.8.8:53
-          bootstrap_version: 4
+          nameservers:
+            - addr: "1.1.1.1:53"
+            - addr: "tls://dns.google:853"
+              dial_addr: 8.8.8.8
+            - addr: "https://cloudflare-dns.com/dns-query"
+              dial_addr: 1.1.1.1
+          ip_version: 4
+          timeout: 5s
+          proxy: none
         proxy:
           socks5: 127.0.0.1:1080
 ```
@@ -208,13 +213,17 @@ Field notes:
   - Constraint: If set, it must reference an existing entry in `profiles`.
 - `outbound.profiles.<name>.resolver`
   - `system`: Use system DNS. HTTP clients perform this lookup asynchronously so it does not block runtime worker threads.
-  - `bootstrap`: Resolve HTTP target names through the configured DNS bootstrap servers. This is useful when system DNS points back to OxiDNS itself but downloads or upgrades still need external resolution.
-  - `bootstrap_version`: Optional, `4` queries A records and `6` queries AAAA records. When omitted, IPv4 is used.
+  - `nameservers`: Resolve target names through configured DNS nameservers. Supports `udp://`, `tcp://`, `tls://`, `https://`, `doh://`, `h3://`, `quic://`, and `doq://`; no scheme defaults to UDP.
+  - Protocol features: UDP/TCP are always available. DoT requires `resolver-dot`, DoH requires `resolver-doh`, DoQ requires `resolver-doq`, and DoH3 requires `resolver-doh3`. Legacy `upstream-*` features still enable the shared DNS client dependencies for existing build scripts, but new `network.outbound.resolver.nameservers` configs should enable `resolver-*` explicitly.
+  - `ip_version`: Optional, `4` queries A records and `6` queries AAAA records. When omitted, IPv4 is used.
+  - `timeout`: Optional resolver query timeout. Defaults to `5s`.
+  - `proxy`: Optional. `none` connects nameservers directly; `profile` lets TCP/DoT/DoH nameservers reuse this profile's SOCKS5 proxy. UDP/DoQ/DoH3 nameservers do not support SOCKS5.
+  - Domain-based nameservers must set `dial_addr`; the hostname in `addr` is kept for SNI/certificate validation and `dial_addr` is used for the actual connection.
 - `outbound.profiles.<name>.proxy`
   - `none` or `direct`: Connect directly.
   - `socks5`: Connect through a SOCKS5 proxy. The format is the same as upstream `socks5`.
 
-`download`, `upgrade`, and `http_request` can now reference a profile with `args.outbound: oversea`. The legacy `socks5` field remains supported. When both `outbound` and `socks5` are set on the same plugin, `socks5` overrides the profile proxy while the resolver still comes from the outbound profile.
+`download`, `upgrade`, and `http_request` can reference a profile with `args.outbound: oversea`. The legacy `socks5` field remains supported. When both `outbound` and `socks5` are set on the same plugin, `socks5` overrides the profile proxy while the resolver still comes from the outbound profile. `forward` upstreams can also opt in with `outbound: oversea`; local upstream `dial_addr`, `bootstrap`, and `socks5` fields override profile-injected values.
 
 ### `api`
 
@@ -615,6 +624,7 @@ Example:
 upstreams:
   - addr: "udp://1.1.1.1:53"
   - addr: "https://resolver.example/dns-query"
+    outbound: oversea
     bootstrap: "8.8.8.8:53"
     timeout: 5s
     enable_http3: true
@@ -631,6 +641,9 @@ Common fields:
   - Actual connection IP, while keeping the hostname from `addr` for SNI and certificate validation.
 - `port`
   - Overrides the port.
+- `outbound`
+  - References a profile under `network.outbound.profiles` to inject resolver/proxy defaults for this upstream.
+  - Local `dial_addr`, `bootstrap`, and `socks5` fields take precedence over the profile.
 - `bootstrap`
   - Bootstrap DNS used to resolve the upstream hostname when `addr` is domain-based. Must be `IP:port`.
 - `bootstrap_version`
