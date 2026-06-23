@@ -5,6 +5,7 @@
 
 use std::future::Future;
 use std::net::IpAddr;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use tokio::sync::{Mutex, RwLock};
@@ -14,6 +15,7 @@ use super::query::{ResolveQuery, ResolvedAnswer};
 use crate::infra::clock::AppClock;
 use crate::infra::error::Result;
 use crate::infra::network::deadline::{DeadlineOutcome, QueryDeadline};
+use crate::infra::network::metrics::{self as network_metrics, NetworkProfileMetrics};
 use crate::proto::{Message, Name};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,6 +34,7 @@ impl ResolvedIp {
 pub(super) struct ResolveEntry {
     pub(super) domain: String,
     query: ResolveQuery,
+    metrics: Arc<NetworkProfileMetrics>,
     pub(super) cache: RwLock<Option<ResolvedIp>>,
     refresh: Mutex<()>,
     expires_at_hint: AtomicU64,
@@ -39,11 +42,16 @@ pub(super) struct ResolveEntry {
 }
 
 impl ResolveEntry {
-    pub(super) fn new(domain: String, ip_version: Option<u8>) -> Result<Self> {
+    pub(super) fn new(
+        domain: String,
+        ip_version: Option<u8>,
+        metrics: Arc<NetworkProfileMetrics>,
+    ) -> Result<Self> {
         let now = AppClock::elapsed_millis();
         Ok(Self {
             query: ResolveQuery::new(domain.as_str(), ip_version)?,
             domain,
+            metrics,
             cache: RwLock::new(None),
             refresh: Mutex::new(()),
             expires_at_hint: AtomicU64::new(0),
@@ -75,6 +83,7 @@ impl ResolveEntry {
         Fut: Future<Output = Result<ResolvedAnswer>>,
     {
         if let Some(resolved) = self.cached_ip().await {
+            network_metrics::resolver_cache_hit(&self.metrics);
             return Ok(resolved);
         }
 
@@ -84,20 +93,34 @@ impl ResolveEntry {
         };
 
         if let Some(resolved) = self.cached_ip().await {
+            network_metrics::resolver_cache_hit(&self.metrics);
             return Ok(resolved);
         }
 
+        network_metrics::resolver_cache_miss(&self.metrics);
         debug!(
             domain = %self.domain,
             "Resolver cache miss or expired, refreshing"
         );
 
-        let answer = refresh(
+        let refresh_started_at_ms = AppClock::elapsed_millis();
+        let answer = match refresh(
             self.query.message_template(),
             self.query.query_name(),
             deadline,
         )
-        .await?;
+        .await
+        {
+            Ok(answer) => {
+                network_metrics::resolver_refresh(&self.metrics, refresh_started_at_ms);
+                answer
+            }
+            Err(err) => {
+                network_metrics::resolver_refresh(&self.metrics, refresh_started_at_ms);
+                network_metrics::resolver_error(&self.metrics);
+                return Err(err);
+            }
+        };
         Ok(self.store(answer).await)
     }
 

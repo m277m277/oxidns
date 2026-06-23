@@ -15,6 +15,7 @@ use crate::config::types::{
     OutboundResolverConfig, OutboundResolverDetailedConfig,
 };
 use crate::infra::error::Result;
+use crate::infra::network::metrics::OUTBOUND_PROFILE_LOCAL;
 use crate::infra::network::outbound;
 use crate::infra::network::proxy::{parse_socks5_opt, parse_socks5_opt_with_resolver};
 use crate::infra::network::upstream::builder::{
@@ -318,6 +319,13 @@ fn test_connection_info_uses_outbound_resolver_for_domain() {
     assert!(info.remote_ip.is_none());
     assert!(info.bootstrap.is_some());
     assert_eq!(info.bootstrap_timeout, Some(Duration::from_millis(500)));
+    assert_eq!(
+        info.bootstrap
+            .as_ref()
+            .expect("outbound resolver should be injected")
+            .profile(),
+        "oversea"
+    );
     outbound::clear_global();
 }
 
@@ -349,6 +357,13 @@ fn test_connection_info_uses_default_outbound_resolver_for_domain() {
     assert!(info.remote_ip.is_none());
     assert!(info.bootstrap.is_some());
     assert_eq!(info.bootstrap_timeout, Some(Duration::from_millis(500)));
+    assert_eq!(
+        info.bootstrap
+            .as_ref()
+            .expect("default outbound resolver should be injected")
+            .profile(),
+        "oversea"
+    );
     outbound::clear_global();
 }
 
@@ -522,6 +537,13 @@ fn test_connection_info_local_bootstrap_overrides_default_outbound_resolver() {
 
     assert!(info.bootstrap.is_some());
     assert!(info.bootstrap_timeout.is_none());
+    assert_eq!(
+        info.bootstrap
+            .as_ref()
+            .expect("local bootstrap resolver should be retained")
+            .profile(),
+        OUTBOUND_PROFILE_LOCAL
+    );
     outbound::clear_global();
 }
 
