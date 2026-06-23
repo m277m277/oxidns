@@ -210,6 +210,47 @@ impl Upstream for UdpTruncatedUpstream {
     }
 }
 
+/// Bootstrap-resolved UDP upstream with automatic TCP fallback on truncation.
+#[derive(Debug)]
+pub(crate) struct BootstrapUdpTruncatedUpstream {
+    connection_info: ConnectionInfo,
+    main: BootstrapUpstream<UdpConnection>,
+    fallback: BootstrapUpstream<TcpConnection>,
+}
+
+impl BootstrapUdpTruncatedUpstream {
+    pub(crate) fn new(connection_info: ConnectionInfo) -> Self {
+        let mut fallback_info = connection_info.clone();
+        fallback_info.connection_type = ConnectionType::TCP;
+        Self {
+            connection_info: connection_info.clone(),
+            main: BootstrapUpstream::new(connection_info),
+            fallback: BootstrapUpstream::new(fallback_info),
+        }
+    }
+}
+
+#[async_trait]
+impl Upstream for BootstrapUdpTruncatedUpstream {
+    async fn inner_query(&self, request: Message, deadline: QueryDeadline) -> Result<Message> {
+        let response = self.main.inner_query(request.clone(), deadline).await?;
+        if response.truncated() {
+            debug!("Bootstrap UDP response truncated, falling back to TCP");
+            self.fallback.inner_query(request, deadline).await
+        } else {
+            Ok(response)
+        }
+    }
+
+    fn connection_info(&self) -> &ConnectionInfo {
+        &self.connection_info
+    }
+
+    fn handles_query_deadline(&self) -> bool {
+        true
+    }
+}
+
 #[derive(Debug)]
 pub struct ConnectionBuilderFactory {
     connection_info: ConnectionInfo,

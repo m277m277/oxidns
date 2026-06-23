@@ -375,6 +375,12 @@ impl OutboundNameserverConfig {
                 profile_name, self.addr
             ))
         })?;
+        if let Some(hint) = parsed.rebuild_hint() {
+            return Err(ConfigError::InvalidNetworkOutbound(format!(
+                "profile '{}' resolver.nameservers addr '{}': {}",
+                profile_name, self.addr, hint
+            )));
+        }
 
         if parsed.host.parse::<IpAddr>().is_err() && self.dial_addr.is_none() {
             return Err(ConfigError::InvalidNetworkOutbound(format!(
@@ -398,6 +404,26 @@ struct ParsedNameserverAddr {
     scheme: String,
     host: String,
     proxy_unsupported: bool,
+}
+
+impl ParsedNameserverAddr {
+    fn rebuild_hint(&self) -> Option<&'static str> {
+        match self.scheme.as_str() {
+            "tls" | "tls+pipeline" if !cfg!(feature = "resolver-dot") => Some(
+                "nameserver DoT is not compiled into this build; rebuild with --features resolver-dot",
+            ),
+            "https" | "doh" if !cfg!(feature = "resolver-doh") => Some(
+                "nameserver DoH is not compiled into this build; rebuild with --features resolver-doh",
+            ),
+            "h3" if !cfg!(feature = "resolver-doh3") => Some(
+                "nameserver DoH3 is not compiled into this build; rebuild with --features resolver-doh3",
+            ),
+            "quic" | "doq" if !cfg!(feature = "resolver-doq") => Some(
+                "nameserver DoQ is not compiled into this build; rebuild with --features resolver-doq",
+            ),
+            _ => None,
+        }
+    }
 }
 
 fn parse_nameserver_addr(addr: &str) -> Option<ParsedNameserverAddr> {
@@ -1083,6 +1109,106 @@ plugins:
             .validate()
             .expect_err("unsupported nameserver scheme should fail");
         assert!(matches!(err, ConfigError::InvalidNetworkOutbound(_)));
+    }
+
+    #[cfg(not(feature = "resolver-dot"))]
+    #[test]
+    fn test_validate_rejects_feature_disabled_dot_nameserver() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          nameservers:
+            - addr: tls://1.1.1.1:853
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("DoT nameserver should require resolver-dot");
+        assert!(err.to_string().contains("resolver-dot"), "{err}");
+    }
+
+    #[cfg(not(feature = "resolver-doh"))]
+    #[test]
+    fn test_validate_rejects_feature_disabled_doh_nameserver() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          nameservers:
+            - addr: https://1.1.1.1/dns-query
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("DoH nameserver should require resolver-doh");
+        assert!(err.to_string().contains("resolver-doh"), "{err}");
+    }
+
+    #[cfg(not(feature = "resolver-doq"))]
+    #[test]
+    fn test_validate_rejects_feature_disabled_doq_nameserver() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          nameservers:
+            - addr: doq://94.140.14.14:853
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("DoQ nameserver should require resolver-doq");
+        assert!(err.to_string().contains("resolver-doq"), "{err}");
+    }
+
+    #[cfg(not(feature = "resolver-doh3"))]
+    #[test]
+    fn test_validate_rejects_feature_disabled_doh3_nameserver() {
+        let config: Config = serde_yaml_ng::from_str(
+            r#"
+network:
+  outbound:
+    profiles:
+      oversea:
+        resolver:
+          nameservers:
+            - addr: h3://1.1.1.1/dns-query
+plugins:
+  - tag: ok
+    type: debug_print
+"#,
+        )
+        .expect("config should deserialize");
+
+        let err = config
+            .validate()
+            .expect_err("DoH3 nameserver should require resolver-doh3");
+        assert!(err.to_string().contains("resolver-doh3"), "{err}");
     }
 
     #[test]

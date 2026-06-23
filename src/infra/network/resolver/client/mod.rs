@@ -60,8 +60,12 @@ fn build_client(config: NameserverConfig) -> Result<Arc<dyn NameserverClient>> {
 }
 
 fn effective_deadline(deadline: QueryDeadline, timeout: Duration) -> QueryDeadline {
-    let _ = timeout;
-    deadline
+    let timeout_deadline = QueryDeadline::new(timeout);
+    if timeout_deadline.expires_at_ms < deadline.expires_at_ms {
+        timeout_deadline
+    } else {
+        deadline
+    }
 }
 
 #[cfg(test)]
@@ -78,5 +82,25 @@ mod tests {
 
         assert_eq!(effective, deadline);
         assert!(effective.remaining().is_none());
+    }
+
+    #[test]
+    fn test_effective_deadline_uses_shorter_nameserver_timeout() {
+        AppClock::start();
+        let deadline = QueryDeadline::new(Duration::from_secs(5));
+
+        let effective = effective_deadline(deadline, Duration::from_millis(500));
+
+        assert!(effective.expires_at_ms < deadline.expires_at_ms);
+    }
+
+    #[test]
+    fn test_effective_deadline_keeps_shorter_caller_deadline() {
+        AppClock::start();
+        let deadline = QueryDeadline::new(Duration::from_millis(500));
+
+        let effective = effective_deadline(deadline, Duration::from_secs(5));
+
+        assert_eq!(effective, deadline);
     }
 }

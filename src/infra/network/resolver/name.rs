@@ -18,6 +18,8 @@ use crate::infra::error::{DnsError, Result};
 use crate::infra::network::deadline::QueryDeadline;
 use crate::proto::{Message, Name, RecordType};
 
+const MAX_RESOLVER_ENTRIES: usize = 4096;
+
 /// Shared resolver backed by one or more DNS nameserver endpoints.
 #[derive(Debug)]
 pub(crate) struct NameResolver {
@@ -77,8 +79,10 @@ impl NameResolver {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         if let Some(entry) = entries.get(&domain) {
+            entry.touch();
             return Ok(entry.clone());
         }
+        prune_entries(&mut entries);
         let entry = Arc::new(ResolveEntry::new(domain.clone(), self.ip_version)?);
         entries.insert(domain, entry.clone());
         Ok(entry)
@@ -149,6 +153,26 @@ impl NameResolver {
             Some(6) => RecordType::AAAA,
             _ => RecordType::A,
         }
+    }
+}
+
+fn prune_entries(entries: &mut HashMap<String, Arc<ResolveEntry>>) {
+    if entries.len() < MAX_RESOLVER_ENTRIES {
+        return;
+    }
+
+    entries.retain(|_, entry| !(Arc::strong_count(entry) == 1 && entry.is_expired_hint()));
+
+    while entries.len() >= MAX_RESOLVER_ENTRIES {
+        let Some(evict_key) = entries
+            .iter()
+            .filter(|(_, entry)| Arc::strong_count(entry) == 1)
+            .min_by_key(|(_, entry)| entry.last_accessed_at())
+            .map(|(domain, _)| domain.clone())
+        else {
+            break;
+        };
+        entries.remove(&evict_key);
     }
 }
 
@@ -399,6 +423,26 @@ mod tests {
         assert_eq!(first, IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1)));
         assert_eq!(second, IpAddr::V4(Ipv4Addr::new(203, 0, 113, 2)));
         assert_eq!(client.count(), 2);
+    }
+
+    #[test]
+    fn test_resolver_entry_map_is_bounded() {
+        start_clock();
+        let client = Arc::new(FakeClient::new("fake", vec![]));
+        let resolver = NameResolver::from_clients(vec![client], None);
+
+        for index in 0..(MAX_RESOLVER_ENTRIES + 10) {
+            let _ = resolver
+                .entry_for(format!("host{index}.example."))
+                .expect("entry should be created");
+        }
+
+        let len = resolver
+            .entries
+            .lock()
+            .expect("entries lock should not be poisoned")
+            .len();
+        assert!(len <= MAX_RESOLVER_ENTRIES, "entry map grew to {len}");
     }
 
     #[tokio::test]

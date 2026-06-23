@@ -18,7 +18,8 @@ use crate::infra::error::Result;
 use crate::infra::network::outbound;
 use crate::infra::network::proxy::{parse_socks5_opt, parse_socks5_opt_with_resolver};
 use crate::infra::network::upstream::builder::{
-    create_pipeline_pool, create_reuse_pool, main_pool_min_conns, udp_truncated_fallback_min_conns,
+    UpstreamBuilder, create_pipeline_pool, create_reuse_pool, main_pool_min_conns,
+    udp_truncated_fallback_min_conns,
 };
 use crate::infra::network::upstream::config::{ConnectionInfo, ConnectionType, UpstreamConfig};
 use crate::infra::network::upstream::pool::{
@@ -169,6 +170,30 @@ fn install_test_outbound_config() {
     outbound::install_global(&config).expect("outbound config should install");
 }
 
+fn install_test_outbound_resolver_only_config() {
+    let config = NetworkOutboundConfig {
+        default: None,
+        profiles: HashMap::from([(
+            "oversea".to_string(),
+            OutboundProfileConfig {
+                resolver: Some(OutboundResolverConfig::Nameservers(
+                    OutboundResolverDetailedConfig {
+                        nameservers: vec![OutboundNameserverConfig {
+                            addr: "1.1.1.1:53".to_string(),
+                            dial_addr: None,
+                        }],
+                        ip_version: Some(4),
+                        timeout: Some("500ms".to_string()),
+                        proxy: None,
+                    },
+                )),
+                proxy: None,
+            },
+        )]),
+    };
+    outbound::install_global(&config).expect("outbound config should install");
+}
+
 #[test]
 fn test_helper_scheme_tcp_pipeline_forces_pipeline() {
     let mut cfg = make_upstream_config("tcp+pipeline://1.1.1.1");
@@ -234,7 +259,7 @@ fn test_connection_info_uses_outbound_resolver_for_domain() {
     let _guard = outbound_test_lock()
         .lock()
         .expect("outbound test lock should not be poisoned");
-    install_test_outbound_config();
+    install_test_outbound_resolver_only_config();
 
     let mut cfg = make_upstream_config("tls://dns.example.invalid:853");
     cfg.outbound = Some("oversea".to_string());
@@ -243,6 +268,25 @@ fn test_connection_info_uses_outbound_resolver_for_domain() {
     assert!(info.remote_ip.is_none());
     assert!(info.bootstrap.is_some());
     assert_eq!(info.bootstrap_timeout, Some(Duration::from_millis(500)));
+    outbound::clear_global();
+}
+
+#[tokio::test]
+async fn test_udp_upstream_with_outbound_resolver_keeps_truncated_fallback() {
+    let _guard = outbound_test_lock()
+        .lock()
+        .expect("outbound test lock should not be poisoned");
+    install_test_outbound_resolver_only_config();
+
+    let mut cfg = make_upstream_config("udp://dns.example.invalid:53");
+    cfg.outbound = Some("oversea".to_string());
+    let info = ConnectionInfo::try_from(cfg).expect("upstream config should parse");
+    let upstream = UpstreamBuilder::with_connection_info(info).expect("upstream should build");
+
+    assert!(
+        format!("{upstream:?}").contains("BootstrapUdpTruncatedUpstream"),
+        "unexpected upstream: {upstream:?}"
+    );
     outbound::clear_global();
 }
 
