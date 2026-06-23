@@ -72,6 +72,7 @@ const topLevelKeys = [
   "runtime",
   "api",
   "log",
+  "network",
   "plugins",
   "init_order",
 ];
@@ -86,7 +87,7 @@ const logLevels = ["off", "trace", "debug", "info", "warn", "error"];
 
 // Sub-keys for top-level config sections derived from the Rust config structs.
 function configSubKeysForPath(path: string[]): string[] | null {
-  const [p0, p1, p2] = path;
+  const [p0, p1, p2, p3, p4, p5] = path;
   if (p0 === "log") return p1 ? null : ["level", "file", "rotation"];
   if (p0 === "runtime") return p1 ? null : ["worker_threads"];
   if (p0 === "api") {
@@ -98,6 +99,20 @@ function configSubKeysForPath(path: string[]): string[] | null {
       if (p2 === "auth") return ["type", "username", "password"];
       if (p2 === "cors") return ["allowed_origins"];
       if (p2 === "webui") return ["root", "index"];
+    }
+  }
+  if (p0 === "network") {
+    if (!p1) return ["outbound"];
+    if (p1 === "outbound") {
+      if (!p2) return ["default", "profiles"];
+      if (p2 === "profiles") {
+        if (!p3) return null;
+        if (!p4) return ["resolver", "proxy"];
+        if (p4 === "proxy") return p5 ? null : ["socks5"];
+        if (p4 === "resolver") {
+          if (!p5) return ["nameservers", "ip_version", "timeout", "proxy"];
+        }
+      }
     }
   }
   return null;

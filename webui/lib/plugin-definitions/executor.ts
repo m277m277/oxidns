@@ -150,6 +150,15 @@ export const executorPluginDefinitions: PluginKindDefinition[] = [
               placeholder: "udp://1.1.1.1:53",
             },
             {
+              key: "outbound",
+              description:
+                "引用 network.outbound.profiles 中的出站配置，为该上游注入 resolver 和 proxy；本地 dial_addr、bootstrap、socks5 优先生效。",
+              label: "出站配置",
+              type: "select",
+              dynamicOptions: "outboundProfiles",
+              placeholder: "oversea",
+            },
+            {
               key: "dial_addr",
               description:
                 "指定实际连接 IP，同时保留 addr 中的主机名用于 SNI、Host 和证书校验；与 bootstrap 同时配置时本字段优先生效。",
@@ -665,7 +674,8 @@ export const executorPluginDefinitions: PluginKindDefinition[] = [
         ip_selector_probe_total: "按测速方式和结果统计的 IP 探测次数。",
         ip_selector_probe_latency_count: "成功测速的延迟样本数。",
         ip_selector_probe_latency_sum_ms: "成功测速延迟累计值（毫秒）。",
-        ip_selector_selected_total: "按 probe/cache/fallback 来源统计的优选次数。",
+        ip_selector_selected_total:
+          "按 probe/cache/fallback 来源统计的优选次数。",
         ip_selector_cache_entries: "当前 IP 探测评分缓存条目数量。",
         ip_selector_dropped_probe_total:
           "由于并发限制或已有 in-flight 探测而未新启动的探测次数。",
@@ -1341,6 +1351,15 @@ export const executorPluginDefinitions: PluginKindDefinition[] = [
         type: "text",
       },
       {
+        key: "outbound",
+        description:
+          "引用 network.outbound.profiles 中的出站配置，用于统一控制解析器和代理。",
+        label: "出站配置",
+        type: "select",
+        dynamicOptions: "outboundProfiles",
+        placeholder: "oversea",
+      },
+      {
         key: "socks5",
         description: "指定 SOCKS5 代理。",
         label: "SOCKS5 代理",
@@ -1865,6 +1884,15 @@ export const executorPluginDefinitions: PluginKindDefinition[] = [
         default: "30s",
       },
       {
+        key: "outbound",
+        description:
+          "引用 network.outbound.profiles 中的出站配置，用于升级下载。",
+        label: "出站配置",
+        type: "select",
+        dynamicOptions: "outboundProfiles",
+        placeholder: "oversea",
+      },
+      {
         key: "socks5",
         description: "升级下载时使用的 SOCKS5 代理。",
         label: "SOCKS5 代理",
@@ -1953,6 +1981,15 @@ export const executorPluginDefinitions: PluginKindDefinition[] = [
         label: "超时",
         type: "duration",
         default: "30s",
+      },
+      {
+        key: "outbound",
+        description:
+          "引用 network.outbound.profiles 中的出站配置，用于统一控制下载解析器和代理。",
+        label: "出站配置",
+        type: "select",
+        dynamicOptions: "outboundProfiles",
+        placeholder: "oversea",
       },
       {
         key: "socks5",

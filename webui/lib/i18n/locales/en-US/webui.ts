@@ -819,6 +819,35 @@ export const enUSWebui = {
     workerThreadsDesc:
       "Number of Tokio multi-thread runtime workers. Leave empty for automatic (system parallelism). Cannot be 0.",
     workerThreadsPlaceholder: "Leave empty for system default",
+    outboundCard: "Outbound Network",
+    outboundCardDesc:
+      "Configure network.outbound profiles shared by HTTP clients, upgrades, downloads, and opt-in upstreams.",
+    defaultOutboundProfile: "Default Outbound Profile",
+    defaultOutboundProfileDesc:
+      "Clients without an explicit outbound selection use this profile. Leave empty for direct connections with the system resolver.",
+    addOutboundProfile: "Add Outbound Profile",
+    noOutboundProfiles: "No outbound profiles configured yet",
+    outboundProfileTitle: "Profile {index}",
+    outboundProfileItemDesc:
+      "Configure resolver nameservers and SOCKS5 proxy for this profile.",
+    removeOutboundProfile: "Remove outbound profile",
+    outboundProfileName: "Profile Name",
+    outboundProfileSocks5: "Profile SOCKS5 Proxy",
+    resolverMode: "Resolver Mode",
+    resolverModeSystem: "System resolver",
+    resolverModeNameservers: "Custom nameservers",
+    resolverIpVersion: "Resolver IP Version",
+    resolverTimeout: "Resolver Timeout",
+    resolverProxy: "Nameserver Proxy",
+    resolverProxyNone: "Direct",
+    resolverProxyProfile: "Use profile SOCKS5",
+    nameservers: "Nameservers",
+    nameserversDesc:
+      "Supports UDP/TCP/DoT/DoH/DoH3/DoQ. Domain nameservers require dial_addr, and IPv6 URIs must already use valid bracketed syntax.",
+    addNameserver: "Add nameserver",
+    noNameservers: "Add at least one nameserver to write a custom resolver.",
+    dialAddrPlaceholder: "dial_addr, optional",
+    removeNameserver: "Remove nameserver",
     mgmtApiCard: "Management API",
     mgmtApiDesc: "HTTP management interface configuration (api.http)",
     listenSection: "Listen Address (listen)",
@@ -892,6 +921,10 @@ export const enUSWebui = {
     bundleFull: "full — full edition",
     bundleStandard: "standard — standard edition",
     bundleMinimal: "minimal — minimal edition",
+    outboundProfile: "Outbound Profile",
+    outboundProfileDesc:
+      "Reference a profile from network.outbound.profiles. Leave empty to use the default outbound settings.",
+    outboundProfilePlaceholder: "oversea",
     socks5Proxy: "SOCKS5 Proxy",
     socks5ProxyDesc:
       "SOCKS5 proxy used for downloads. Do not include a protocol prefix; username and password are supported.",
