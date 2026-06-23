@@ -83,6 +83,11 @@ impl NameResolver {
             return Ok(entry.clone());
         }
         prune_entries(&mut entries);
+        if entries.len() >= MAX_RESOLVER_ENTRIES {
+            return Err(DnsError::protocol(format!(
+                "resolver cache entry limit exceeded ({MAX_RESOLVER_ENTRIES})"
+            )));
+        }
         let entry = Arc::new(ResolveEntry::new(domain.clone(), self.ip_version)?);
         entries.insert(domain, entry.clone());
         Ok(entry)
@@ -443,6 +448,37 @@ mod tests {
             .expect("entries lock should not be poisoned")
             .len();
         assert!(len <= MAX_RESOLVER_ENTRIES, "entry map grew to {len}");
+    }
+
+    #[test]
+    fn test_resolver_rejects_new_entries_when_cache_cap_is_active() {
+        start_clock();
+        let client = Arc::new(FakeClient::new("fake", vec![]));
+        let resolver = NameResolver::from_clients(vec![client], None);
+        let mut active_entries = Vec::new();
+
+        for index in 0..MAX_RESOLVER_ENTRIES {
+            active_entries.push(
+                resolver
+                    .entry_for(format!("active{index}.example."))
+                    .expect("entry should be created"),
+            );
+        }
+
+        let err = resolver
+            .entry_for("overflow.example.".to_string())
+            .expect_err("active cache cap should reject new domains");
+
+        assert!(err.to_string().contains("entry limit exceeded"), "{err}");
+        assert_eq!(
+            resolver
+                .entries
+                .lock()
+                .expect("entries lock should not be poisoned")
+                .len(),
+            MAX_RESOLVER_ENTRIES
+        );
+        drop(active_entries);
     }
 
     #[tokio::test]
