@@ -156,7 +156,7 @@ export const executorPluginDefinitions: PluginKindDefinition[] = [
               label: "出站配置",
               type: "select",
               dynamicOptions: "outboundProfiles",
-              placeholder: "oversea",
+              placeholder: "profile-1",
             },
             {
               key: "dial_addr",
@@ -1357,7 +1357,7 @@ export const executorPluginDefinitions: PluginKindDefinition[] = [
         label: "出站配置",
         type: "select",
         dynamicOptions: "outboundProfiles",
-        placeholder: "oversea",
+        placeholder: "profile-1",
       },
       {
         key: "socks5",
@@ -1890,7 +1890,7 @@ export const executorPluginDefinitions: PluginKindDefinition[] = [
         label: "出站配置",
         type: "select",
         dynamicOptions: "outboundProfiles",
-        placeholder: "oversea",
+        placeholder: "profile-1",
       },
       {
         key: "socks5",
@@ -1989,7 +1989,7 @@ export const executorPluginDefinitions: PluginKindDefinition[] = [
         label: "出站配置",
         type: "select",
         dynamicOptions: "outboundProfiles",
-        placeholder: "oversea",
+        placeholder: "profile-1",
       },
       {
         key: "socks5",
