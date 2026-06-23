@@ -184,7 +184,7 @@ Arguments:
 Output includes:
 
 - Target details: address, protocol, server name, port, and timeout.
-- Hostname upstream resolution: `resolved_ip` and `resolution_source`; sources may be `literal`, `dial_addr`, `configured`, `bootstrap`, or `system`.
+- Hostname upstream resolution: `resolved_ip` and `resolution_source`; sources may be `literal`, `dial_addr`, `configured`, `bootstrap`, `system`, or `proxy`.
 - Serial baseline: reachable / unreachable, average latency, rcode, answer count, TC / RA flags, and error summary.
 - Concurrency probe: supported / unsupported / unstable / inconclusive, success count, timeout count, response ID / question / qtype mismatch count, other errors, and recommendation.
 - Non-JSON mode prints probe progress to stderr while the final report goes to stdout. JSON mode writes only the report to stdout.

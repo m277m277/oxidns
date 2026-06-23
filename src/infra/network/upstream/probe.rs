@@ -209,15 +209,15 @@ where
     });
     let block_direct_probe = resolution_blocks_direct_probe(&connection_info, &resolution);
 
-    let target = UpstreamProbeTarget {
+    let mut target = UpstreamProbeTarget {
         address: connection_info.raw_addr.clone(),
         protocol: protocol_name(connection_info.connection_type).to_string(),
         server_name: connection_info.server_name.clone(),
         port: connection_info.port,
         resolved_ip: resolution.ip.map(|ip| ip.to_string()),
-        resolution_source: resolution.source,
+        resolution_source: resolution.source.clone(),
         uses_bootstrap,
-        resolution_error: resolution.error,
+        resolution_error: resolution.error.clone(),
     };
 
     let serial = if block_direct_probe {
@@ -240,6 +240,7 @@ where
         &mut progress,
     )
     .await;
+    refresh_target_resolution_after_pipeline(&mut target, &connection_info);
     let recommendation = recommendation(&serial, &pipeline);
     progress(ProbeProgress::Finished {
         serial: serial.verdict,
@@ -409,6 +410,15 @@ async fn resolve_remote_ip(info: &ConnectionInfo, has_dial_addr: bool) -> Resolu
         };
     }
 
+    if info.socks5.is_some() {
+        return ResolutionProbe {
+            ip: None,
+            source: Some("proxy".to_string()),
+            error: None,
+            apply_to_connection: false,
+        };
+    }
+
     let server_name = info.server_name.clone();
     match run_probe_blocking_with_timeout(info.timeout, move || {
         try_lookup_server_name(&server_name)
@@ -452,6 +462,20 @@ fn resolution_blocks_direct_probe(info: &ConnectionInfo, resolution: &Resolution
         && info.remote_ip.is_none()
         && info.bootstrap.is_none()
         && info.socks5.is_none()
+}
+
+fn refresh_target_resolution_after_pipeline(
+    target: &mut UpstreamProbeTarget,
+    connection_info: &ConnectionInfo,
+) {
+    if target.uses_bootstrap
+        && target.resolved_ip.is_none()
+        && let Some(remote_ip) = connection_info.remote_ip
+    {
+        target.resolved_ip = Some(remote_ip.to_string());
+        target.resolution_source = Some("bootstrap".to_string());
+        target.resolution_error = None;
+    }
 }
 
 async fn run_serial_probe<F>(
@@ -1669,6 +1693,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn resolve_remote_ip_uses_proxy_source_without_system_lookup() {
+        let mut info =
+            ConnectionInfo::with_addr("tcp://dns.example.invalid:53").expect("addr should parse");
+        info.socks5 = Some(Socks5Opt {
+            username: None,
+            password: None,
+            socket_addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 1080)),
+        });
+        info.timeout = Duration::from_nanos(1);
+
+        let resolution = resolve_remote_ip(&info, false).await;
+
+        assert_eq!(resolution.ip, None);
+        assert_eq!(resolution.source.as_deref(), Some("proxy"));
+        assert_eq!(resolution.error, None);
+        assert!(!resolution.apply_to_connection);
+    }
+
+    #[tokio::test]
     async fn resolve_probe_socks5_respects_timeout() {
         let started = Instant::now();
 
@@ -1708,6 +1751,29 @@ mod tests {
         assert_eq!(info.remote_ip, Some(IpAddr::V4(answer_ip)));
         assert!(info.bootstrap.is_none());
         assert!(info.bootstrap_timeout.is_none());
+    }
+
+    #[test]
+    fn refresh_target_resolution_after_pipeline_records_bootstrap_retry() {
+        let mut target = UpstreamProbeTarget {
+            address: "tcp://dns.example.invalid:53".to_string(),
+            protocol: "tcp".to_string(),
+            server_name: "dns.example.invalid".to_string(),
+            port: 53,
+            resolved_ip: None,
+            resolution_source: Some("bootstrap".to_string()),
+            uses_bootstrap: true,
+            resolution_error: Some("transient bootstrap failure".to_string()),
+        };
+        let mut info =
+            ConnectionInfo::with_addr("tcp://dns.example.invalid:53").expect("addr should parse");
+        info.remote_ip = Some(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 53)));
+
+        refresh_target_resolution_after_pipeline(&mut target, &info);
+
+        assert_eq!(target.resolved_ip.as_deref(), Some("192.0.2.53"));
+        assert_eq!(target.resolution_source.as_deref(), Some("bootstrap"));
+        assert_eq!(target.resolution_error, None);
     }
 
     #[test]

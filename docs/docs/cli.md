@@ -184,7 +184,7 @@ oxidns probe upstream tcp://dns.example.com:53 -c config.yaml --outbound remote
 输出内容：
 
 - 目标信息：地址、协议、服务名、端口、超时。
-- 域名型 upstream 的解析结果：`resolved_ip` 和 `resolution_source`，来源可能是 `literal`、`dial_addr`、`configured`、`bootstrap` 或 `system`。
+- 域名型 upstream 的解析结果：`resolved_ip` 和 `resolution_source`，来源可能是 `literal`、`dial_addr`、`configured`、`bootstrap`、`system` 或 `proxy`。
 - 串行基线：reachable / unreachable、平均延迟、rcode、answer 数量、TC / RA 标志和错误摘要。
 - 并发探测：supported / unsupported / unstable / inconclusive、成功数、超时数、响应 ID / question / qtype 不匹配数、其它错误和建议。
 - 非 JSON 模式会在探测过程中向 stderr 输出进度，最终报告输出到 stdout；JSON 模式只向 stdout 输出报告。
