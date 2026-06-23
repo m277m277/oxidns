@@ -301,6 +301,12 @@ pub(crate) fn clear_global() {
         .unwrap_or_else(|poisoned| poisoned.into_inner()) = Arc::new(OutboundRuntime::default());
 }
 
+#[cfg(test)]
+pub(crate) fn test_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
 pub(crate) fn global() -> Arc<OutboundRuntime> {
     global_slot()
         .lock()

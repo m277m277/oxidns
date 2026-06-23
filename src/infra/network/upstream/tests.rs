@@ -4,8 +4,8 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -140,9 +140,8 @@ fn make_upstream_config(addr: &str) -> UpstreamConfig {
     }
 }
 
-fn outbound_test_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
+fn outbound_test_lock() -> &'static std::sync::Mutex<()> {
+    outbound::test_lock()
 }
 
 fn install_test_outbound_config() {

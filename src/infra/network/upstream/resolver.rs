@@ -688,9 +688,35 @@ mod tests {
     use super::*;
     use crate::infra::clock::AppClock;
     use crate::infra::network::metrics::{self as network_metrics, OUTBOUND_PROFILE_LOCAL};
+    use crate::infra::network::outbound;
     use crate::infra::network::upstream::UpstreamConfig;
     use crate::proto::rdata::A;
     use crate::proto::{MessageType, RData, Rcode, Record};
+
+    struct OutboundGlobalGuard {
+        _lock: std::sync::MutexGuard<'static, ()>,
+        previous: Arc<outbound::OutboundRuntime>,
+    }
+
+    impl OutboundGlobalGuard {
+        fn new() -> Self {
+            let lock = outbound::test_lock()
+                .lock()
+                .expect("outbound test lock should not be poisoned");
+            let previous = outbound::global();
+            outbound::clear_global();
+            Self {
+                _lock: lock,
+                previous,
+            }
+        }
+    }
+
+    impl Drop for OutboundGlobalGuard {
+        fn drop(&mut self) {
+            outbound::restore_global(self.previous.clone());
+        }
+    }
 
     async fn spawn_bootstrap_server(answers: Vec<(Ipv4Addr, u32)>) -> (String, Arc<AtomicUsize>) {
         let socket = UdpSocket::bind("127.0.0.1:0")
@@ -764,6 +790,7 @@ mod tests {
             so_mark: None,
             bind_to_device: None,
         };
+        let _outbound_guard = OutboundGlobalGuard::new();
         ConnectionInfo::try_from(config).expect("bootstrap upstream config should parse")
     }
 
