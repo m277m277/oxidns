@@ -502,3 +502,32 @@ async fn consensus_selection_returns_after_two_negative_votes() {
         Rcode::NXDomain
     );
 }
+
+#[tokio::test(start_paused = true)]
+async fn consensus_selection_waits_when_negative_votes_disagree() {
+    let forwarder = ConcurrentForwarder {
+        tag: "forward-test".to_string(),
+        active_concurrent: 3,
+        upstreams: vec![
+            Arc::new(MockUpstream::response(Rcode::NXDomain, Duration::ZERO)),
+            Arc::new(MockUpstream::response(
+                Rcode::NoError,
+                Duration::from_millis(20),
+            )),
+            Arc::new(MockUpstream::ok_with_answer(Duration::from_millis(200))),
+        ],
+        short_circuit: false,
+        response_selection: ResponseSelectionMode::Consensus,
+        metrics: Arc::new(ForwardMetrics::new(
+            "forward-test".to_string(),
+            vec!["u0".to_string(), "u1".to_string(), "u2".to_string()],
+        )),
+    };
+
+    let mut context = make_context();
+    let step = forwarder.execute(&mut context).await.unwrap();
+    let response = context.response().expect("response must exist");
+    assert!(matches!(step, ExecStep::Next));
+    assert_eq!(response.rcode(), Rcode::NoError);
+    assert_eq!(response.answers().len(), 1);
+}
