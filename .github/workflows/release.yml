@@ -287,7 +287,7 @@ jobs:
         with:
           name: oxidns-${{ matrix.target }}.${{ matrix.archive_ext }}
           path: target/${{ matrix.target }}/release/oxidns-${{ matrix.target }}.${{ matrix.archive_ext }}
-          archive: false
+          compression-level: 0
           if-no-files-found: error
 
   slim-release:
@@ -367,7 +367,7 @@ jobs:
         with:
           name: oxidns-${{ matrix.bundle }}-${{ matrix.target }}.tar.gz
           path: target/${{ matrix.target }}/release/oxidns-${{ matrix.bundle }}-${{ matrix.target }}.tar.gz
-          archive: false
+          compression-level: 0
           if-no-files-found: error
 
   publish:
