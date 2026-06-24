@@ -169,6 +169,10 @@ export const pluginFieldDocs = {
       "- 类型：`string`；必填：否；默认值：`first_success`\n- 可选值：\n  - `first_success`：在总等待预算内，第一个成功探测的地址优先\n  - `best_within_budget`：在总等待预算内收集成功探测结果，选择延迟最低的地址\n  - `background`：本次响应保持原始顺序，后台异步预热探测评分缓存\n- 作用：定义已有 A / AAAA 响应中的地址优选策略。\n- 运行影响：\n  - 插件只处理已有 DNS response，不负责上游竞速。\n  - 探测失败、超时或无评分时会保留原始响应作为兜底。\n- 配置要求：只接受 OxiDNS 原生命名，不提供兼容别名。",
     probe_methods:
       '- 类型：`array<string>` 或逗号分隔 `string`；必填：否；默认值：`["tcp:443", "tcp:80"]`\n- 支持值：\n  - `tcp:<port>`：对目标 IP 的指定端口做 TCP connect 探测\n  - `ping`：best-effort ICMP 探测，受平台与权限影响\n  - `none`：不主动探测，只使用已有缓存评分或原始顺序\n- 作用：定义用于给响应 IP 评分的探测方式。\n- 配置要求：\n  - `none` 不能与其它探测方式组合。\n  - `tcp:<port>` 的端口必须大于 0。\n  - 方法顺序会影响错峰启动顺序。',
+    outbound:
+      "- 类型：`string`；必填：否；默认值：`network.outbound.default`\n- 作用：引用 `network.outbound.profiles` 中的出站配置，为 TCP 探测复用 profile proxy。\n- 说明：\n  - 仅 `tcp:<port>` 探测使用 proxy；`ping` 始终走本机命令。\n  - 目标 IP 已经来自 DNS response，不会再使用 profile resolver 解析。",
+    socks5:
+      "- 类型：`string`；必填：否；默认值：无\n- 作用：为 TCP 探测指定局部 SOCKS5 代理。\n- 说明：\n  - 格式与 `upstreams[].socks5` 一致。\n  - 同时配置 `outbound` 和 `socks5` 时，局部 `socks5` 覆盖 profile proxy。\n  - 仅 `tcp:<port>` 探测使用 SOCKS5；`ping` 始终走本机命令。",
     probe_stagger:
       "- 类型：`integer`；必填：否；默认值：`200`\n- 单位：毫秒\n- 作用：定义多种探测方式之间的错峰启动间隔。\n- 运行影响：\n  - 较小值会让多种方法更快并发启动。\n  - 较大值会让靠前方法获得更明显的优先机会，尤其影响 `first_success`。",
     probe_timeout:

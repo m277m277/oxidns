@@ -721,6 +721,22 @@ export const executorPluginDefinitions: PluginKindDefinition[] = [
         "定义用于评分响应 IP 的探测方式，支持 tcp:<port>、ping、none。",
       ),
       {
+        key: "outbound",
+        description:
+          "引用 network.outbound.profiles 中的出站配置，为 TCP 探测复用 profile proxy。",
+        label: "出站配置",
+        type: "select",
+        dynamicOptions: "outboundProfiles",
+        placeholder: "profile-1",
+      },
+      {
+        key: "socks5",
+        description: "为 TCP 探测指定局部 SOCKS5 代理，优先于 outbound profile proxy。",
+        label: "SOCKS5 代理",
+        type: "text",
+        placeholder: "127.0.0.1:1080",
+      },
+      {
         key: "probe_stagger",
         description: "多种测速方式之间的错峰启动间隔。",
         label: "测速错峰(ms)",

@@ -1143,6 +1143,7 @@ old-static.example.com static.example.net
   type: ip_selector
   args:
     selection_mode: first_success
+    outbound: remote
     probe_methods: ["tcp:443", "tcp:80"]
     probe_stagger: 200
     probe_timeout: 600
@@ -1183,6 +1184,23 @@ old-static.example.com static.example.net
 - 类型：`array<string> | string`；必填：否；默认值：`["tcp:443", "tcp:80"]`
 - 可选值：`tcp:<port>`、`ping`、`none`
 - 作用：定义用于评分 IP 的探测方法。`ping` 为 best-effort；平台或权限不支持时会失败开放。
+
+#### `outbound`
+
+- 类型：`string`；必填：否；默认值：`network.outbound.default`
+- 作用：引用 `network.outbound.profiles` 中的出站配置，为 TCP 探测复用 profile proxy。
+- 说明：
+  - 仅 `tcp:<port>` 探测会使用 proxy；`ping` 始终走本机命令。
+  - 本字段只使用 profile proxy，不会对目标 IP 再做 resolver 解析。
+
+#### `socks5`
+
+- 类型：`string`；必填：否；默认值：无
+- 作用：为 TCP 探测指定局部 SOCKS5 代理。
+- 说明：
+  - 格式与 `upstreams[].socks5` 一致。
+  - 同时配置 `outbound` 和 `socks5` 时，局部 `socks5` 覆盖 profile proxy。
+  - 仅 `tcp:<port>` 探测会使用 SOCKS5；`ping` 始终走本机命令。
 
 #### `probe_stagger`
 

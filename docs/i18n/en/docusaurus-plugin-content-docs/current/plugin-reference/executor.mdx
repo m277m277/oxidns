@@ -1075,6 +1075,7 @@ Response IP selector. It only shapes A/AAAA records already present in `response
   type: ip_selector
   args:
     selection_mode: first_success
+    outbound: remote
     probe_methods: ["tcp:443", "tcp:80"]
     probe_stagger: 200
     probe_timeout: 600
@@ -1117,6 +1118,23 @@ This lets `cache` store the original upstream response while `ip_selector` appli
 - Type: `array<string> | string`; Required: no; Default: `["tcp:443", "tcp:80"]`
 - Values: `tcp:<port>`, `ping`, `none`
 - Purpose: Probe methods used to score answer IPs. `ping` is best-effort and fails open when unavailable.
+
+#### `outbound`
+
+- Type: `string`; Required: no; Default: `network.outbound.default`
+- Purpose: References a `network.outbound.profiles` entry so TCP probes can reuse the profile proxy.
+- Notes:
+  - Only `tcp:<port>` probes use proxy settings; `ping` always runs locally.
+  - This field only uses the profile proxy. Target IPs are already known and are not resolved again.
+
+#### `socks5`
+
+- Type: `string`; Required: no; Default: none
+- Purpose: Local SOCKS5 proxy override for TCP probes.
+- Notes:
+  - Uses the same format as `upstreams[].socks5`.
+  - When both `outbound` and `socks5` are configured, local `socks5` overrides the profile proxy.
+  - Only `tcp:<port>` probes use SOCKS5; `ping` always runs locally.
 
 #### `probe_stagger`
 
